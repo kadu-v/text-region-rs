@@ -28,7 +28,7 @@ pub struct MserRegion {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct MserResult {
+pub struct MserRegions {
     pub from_min: Vec<MserRegion>,
     pub from_max: Vec<MserRegion>,
 }
@@ -68,8 +68,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mser_result_default() {
-        let r = MserResult::default();
+    fn test_mser_regions_default() {
+        let r = MserRegions::default();
         assert!(r.from_min.is_empty());
         assert!(r.from_max.is_empty());
     }

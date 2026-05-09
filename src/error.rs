@@ -1,5 +1,4 @@
 use crate::params::MserParams;
-use image::GrayImage;
 
 pub type Result<T> = std::result::Result<T, MserError>;
 
@@ -39,14 +38,6 @@ pub enum MserError {
 
     #[error(transparent)]
     Image(#[from] image::ImageError),
-}
-
-pub(crate) fn validate_gray_image_input(
-    image: &GrayImage,
-    params: &MserParams,
-) -> Result<()> {
-    validate_image_dimensions(image.width(), image.height())?;
-    validate_params(params)
 }
 
 pub(crate) fn validate_raw_image_input(

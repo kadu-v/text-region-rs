@@ -1,13 +1,10 @@
 use rayon::prelude::*;
 
 use crate::block_memory::BlockMemory;
-use crate::error::{
-    Result, checked_image_len, validate_gray_image_input,
-    validate_raw_image_input,
-};
+use crate::error::{Result, checked_image_len, validate_raw_image_input};
 use crate::params::{ConnectedType, MserParams, ParallelConfig};
 use crate::partition::*;
-use crate::types::{MserRegion, MserResult};
+use crate::types::{MserRegion, MserRegions};
 use crate::v1::data::RegionFlag;
 use crate::v2::build_tree::{TreeBuildResultV2, make_tree_patch_v2};
 use crate::v2::data::*;
@@ -378,8 +375,7 @@ pub fn extract_msers_v2_partitioned(
     image: &GrayImage,
     params: &MserParams,
     config: &ParallelConfig,
-) -> Result<MserResult> {
-    validate_gray_image_input(image, params)?;
+) -> Result<MserRegions> {
     extract_msers_v2_partitioned_raw(
         image.as_raw(),
         image.width(),
@@ -395,7 +391,7 @@ pub(crate) fn extract_msers_v2_partitioned_raw(
     height: u32,
     params: &MserParams,
     config: &ParallelConfig,
-) -> Result<MserResult> {
+) -> Result<MserRegions> {
     validate_raw_image_input(image, width, height, params)?;
     let max_point = (params.max_point_ratio
         * checked_image_len(width, height)? as f32) as i32;
@@ -438,7 +434,7 @@ pub(crate) fn extract_msers_v2_partitioned_raw(
         },
     );
 
-    Ok(MserResult { from_min, from_max })
+    Ok(MserRegions { from_min, from_max })
 }
 
 #[cfg(test)]

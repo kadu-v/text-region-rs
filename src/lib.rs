@@ -8,7 +8,7 @@ pub mod v1;
 pub mod v2;
 
 pub use params::{MserParams, ParallelConfig};
-pub use types::MserResult;
+pub use types::MserRegions;
 pub use v1::extract_msers;
 pub use v1::extract_msers_parallel;
 pub use v2::extract_msers_v2;

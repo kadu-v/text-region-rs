@@ -4,12 +4,9 @@ pub mod extract;
 pub mod process_patch;
 pub mod recognize;
 
-use crate::error::{
-    Result, checked_image_len, validate_gray_image_input,
-    validate_raw_image_input,
-};
+use crate::error::{Result, checked_image_len, validate_raw_image_input};
 use crate::params::{MserParams, ParallelConfig};
-use crate::types::{MserRegion, MserResult};
+use crate::types::{MserRegion, MserRegions};
 use image::GrayImage;
 
 fn run_v1_pipeline(
@@ -52,8 +49,7 @@ fn run_v1_pipeline(
 pub fn extract_msers(
     image: &GrayImage,
     params: &MserParams,
-) -> Result<MserResult> {
-    validate_gray_image_input(image, params)?;
+) -> Result<MserRegions> {
     extract_msers_raw(image.as_raw(), image.width(), image.height(), params)
 }
 
@@ -62,11 +58,11 @@ pub(crate) fn extract_msers_raw(
     width: u32,
     height: u32,
     params: &MserParams,
-) -> Result<MserResult> {
+) -> Result<MserRegions> {
     validate_raw_image_input(image, width, height, params)?;
     let max_point = (params.max_point_ratio
         * checked_image_len(width, height)? as f32) as i32;
-    let mut result = MserResult::default();
+    let mut result = MserRegions::default();
 
     if params.from_min {
         result.from_min =
@@ -85,8 +81,7 @@ pub fn extract_msers_parallel(
     image: &GrayImage,
     params: &MserParams,
     config: &ParallelConfig,
-) -> Result<MserResult> {
-    validate_gray_image_input(image, params)?;
+) -> Result<MserRegions> {
     extract_msers_parallel_raw(
         image.as_raw(),
         image.width(),
@@ -102,7 +97,7 @@ pub(crate) fn extract_msers_parallel_raw(
     height: u32,
     params: &MserParams,
     _config: &ParallelConfig,
-) -> Result<MserResult> {
+) -> Result<MserRegions> {
     validate_raw_image_input(image, width, height, params)?;
     let max_point = (params.max_point_ratio
         * checked_image_len(width, height)? as f32) as i32;
@@ -124,7 +119,7 @@ pub(crate) fn extract_msers_parallel_raw(
         },
     );
 
-    Ok(MserResult { from_min, from_max })
+    Ok(MserRegions { from_min, from_max })
 }
 
 #[cfg(test)]
