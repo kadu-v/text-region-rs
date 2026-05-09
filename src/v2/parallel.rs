@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 
 use crate::block_memory::BlockMemory;
-use crate::error::{Result, checked_image_len, validate_raw_image_input};
+use crate::error::{Result, validate_raw_image_input};
 use crate::params::{ConnectedType, MserParams, ParallelConfig};
 use crate::partition::*;
 use crate::types::{MserRegion, MserRegions};
@@ -392,9 +392,8 @@ pub(crate) fn extract_msers_v2_partitioned_raw(
     params: &MserParams,
     config: &ParallelConfig,
 ) -> Result<MserRegions> {
-    validate_raw_image_input(image, width, height, params)?;
-    let max_point = (params.max_point_ratio
-        * checked_image_len(width, height)? as f32) as i32;
+    let validated = validate_raw_image_input(image, width, height, params)?;
+    let max_point = validated.max_point(params);
     let grid = compute_grid_config(config.num_patches)?;
     let patches = compute_patches(width, height, &grid);
     let boundary_edges = compute_boundary_edges(&grid, &patches);

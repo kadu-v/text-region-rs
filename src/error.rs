@@ -2,6 +2,17 @@ use crate::params::MserParams;
 
 pub type Result<T> = std::result::Result<T, MserError>;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ValidatedImage {
+    pub len: usize,
+}
+
+impl ValidatedImage {
+    pub(crate) fn max_point(self, params: &MserParams) -> i32 {
+        (params.max_point_ratio * self.len as f32) as i32
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MserError {
     #[error("image dimensions must be non-zero, got {width}x{height}")]
@@ -45,7 +56,7 @@ pub(crate) fn validate_raw_image_input(
     width: u32,
     height: u32,
     params: &MserParams,
-) -> Result<()> {
+) -> Result<ValidatedImage> {
     let expected = validate_image_dimensions(width, height)?;
     if image.len() != expected {
         return Err(MserError::ImageBufferLengthMismatch {
@@ -56,7 +67,9 @@ pub(crate) fn validate_raw_image_input(
         });
     }
 
-    validate_params(params)
+    validate_params(params)?;
+
+    Ok(ValidatedImage { len: expected })
 }
 
 fn validate_image_dimensions(width: u32, height: u32) -> Result<usize> {
@@ -69,7 +82,7 @@ fn validate_image_dimensions(width: u32, height: u32) -> Result<usize> {
     Ok(expected)
 }
 
-pub(crate) fn checked_image_len(width: u32, height: u32) -> Result<usize> {
+fn checked_image_len(width: u32, height: u32) -> Result<usize> {
     checked_len(width as u64, height as u64, width, height)
 }
 

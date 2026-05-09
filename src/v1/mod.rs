@@ -4,7 +4,7 @@ pub mod extract;
 pub mod process_patch;
 pub mod recognize;
 
-use crate::error::{Result, checked_image_len, validate_raw_image_input};
+use crate::error::{Result, validate_raw_image_input};
 use crate::params::{MserParams, ParallelConfig};
 use crate::types::{MserRegion, MserRegions};
 use image::GrayImage;
@@ -59,9 +59,8 @@ pub(crate) fn extract_msers_raw(
     height: u32,
     params: &MserParams,
 ) -> Result<MserRegions> {
-    validate_raw_image_input(image, width, height, params)?;
-    let max_point = (params.max_point_ratio
-        * checked_image_len(width, height)? as f32) as i32;
+    let validated = validate_raw_image_input(image, width, height, params)?;
+    let max_point = validated.max_point(params);
     let mut result = MserRegions::default();
 
     if params.from_min {
@@ -98,9 +97,8 @@ pub(crate) fn extract_msers_parallel_raw(
     params: &MserParams,
     _config: &ParallelConfig,
 ) -> Result<MserRegions> {
-    validate_raw_image_input(image, width, height, params)?;
-    let max_point = (params.max_point_ratio
-        * checked_image_len(width, height)? as f32) as i32;
+    let validated = validate_raw_image_input(image, width, height, params)?;
+    let max_point = validated.max_point(params);
 
     let (from_min, from_max) = rayon::join(
         || {
