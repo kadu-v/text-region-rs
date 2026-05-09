@@ -56,7 +56,9 @@ fn rejects_invalid_patch_count() {
 
     let cfg = text_region_rs::ParallelConfig { num_patches: 3 };
     let image = GrayImage::new(2, 2);
-    let err = extract_msers_v2_partitioned(&image, &MserParams::default(), &cfg).unwrap_err();
+    let err =
+        extract_msers_v2_partitioned(&image, &MserParams::default(), &cfg)
+            .unwrap_err();
     assert!(matches!(
         err,
         MserError::InvalidNumPatches { num_patches: 3 }

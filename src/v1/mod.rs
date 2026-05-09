@@ -5,7 +5,8 @@ pub mod process_patch;
 pub mod recognize;
 
 use crate::error::{
-    Result, checked_image_len, validate_gray_image_input, validate_raw_image_input,
+    Result, checked_image_len, validate_gray_image_input,
+    validate_raw_image_input,
 };
 use crate::params::{MserParams, ParallelConfig};
 use crate::types::{MserRegion, MserResult};
@@ -48,7 +49,10 @@ fn run_v1_pipeline(
 }
 
 /// Extract MSERs from a grayscale image using Fast MSER V1 (single-threaded).
-pub fn extract_msers(image: &GrayImage, params: &MserParams) -> Result<MserResult> {
+pub fn extract_msers(
+    image: &GrayImage,
+    params: &MserParams,
+) -> Result<MserResult> {
     validate_gray_image_input(image, params)?;
     extract_msers_raw(image.as_raw(), image.width(), image.height(), params)
 }
@@ -60,14 +64,17 @@ pub(crate) fn extract_msers_raw(
     params: &MserParams,
 ) -> Result<MserResult> {
     validate_raw_image_input(image, width, height, params)?;
-    let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
+    let max_point = (params.max_point_ratio
+        * checked_image_len(width, height)? as f32) as i32;
     let mut result = MserResult::default();
 
     if params.from_min {
-        result.from_min = run_v1_pipeline(image, width, height, params, max_point, 0);
+        result.from_min =
+            run_v1_pipeline(image, width, height, params, max_point, 0);
     }
     if params.from_max {
-        result.from_max = run_v1_pipeline(image, width, height, params, max_point, 255);
+        result.from_max =
+            run_v1_pipeline(image, width, height, params, max_point, 255);
     }
 
     Ok(result)
@@ -97,7 +104,8 @@ pub(crate) fn extract_msers_parallel_raw(
     _config: &ParallelConfig,
 ) -> Result<MserResult> {
     validate_raw_image_input(image, width, height, params)?;
-    let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
+    let max_point = (params.max_point_ratio
+        * checked_image_len(width, height)? as f32) as i32;
 
     let (from_min, from_max) = rayon::join(
         || {
@@ -352,7 +360,11 @@ mod tests {
         let r100 = result.from_min.iter().find(|m| m.gray_level == 100);
 
         if let Some(region) = r10 {
-            assert_eq!(region.points.len(), 9, "V1 level 10: expected 3x3=9 pixels");
+            assert_eq!(
+                region.points.len(),
+                9,
+                "V1 level 10: expected 3x3=9 pixels"
+            );
         }
         if let Some(region) = r50 {
             assert_eq!(

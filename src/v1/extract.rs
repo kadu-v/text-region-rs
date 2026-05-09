@@ -111,14 +111,33 @@ mod tests {
         height: u32,
         gray_mask: u8,
     ) -> Vec<MserRegion> {
-        let mut result =
-            make_tree_patch(img, width, height, width, gray_mask, ConnectedType::FourConnected, 1);
+        let mut result = make_tree_patch(
+            img,
+            width,
+            height,
+            width,
+            gray_mask,
+            ConnectedType::FourConnected,
+            1,
+        );
 
         let max_point = (0.5 * (width * height) as f32) as i32;
-        let valid_order =
-            recognize_mser(&mut result.regions, 1, 10.0, -1.0, 0.0, 1, max_point);
+        let valid_order = recognize_mser(
+            &mut result.regions,
+            1,
+            10.0,
+            -1.0,
+            0.0,
+            1,
+            max_point,
+        );
 
-        extract_pixels(&result.regions, &mut result.linked_points, &valid_order, gray_mask)
+        extract_pixels(
+            &result.regions,
+            &mut result.linked_points,
+            &valid_order,
+            gray_mask,
+        )
     }
 
     #[test]
@@ -150,8 +169,15 @@ mod tests {
             make_tree_patch(&img, 3, 3, 3, 0, ConnectedType::FourConnected, 1);
 
         let max_point = 9;
-        let valid_order =
-            recognize_mser(&mut result.regions, 1, 10.0, -1.0, 0.0, 1, max_point);
+        let valid_order = recognize_mser(
+            &mut result.regions,
+            1,
+            10.0,
+            -1.0,
+            0.0,
+            1,
+            max_point,
+        );
 
         let msers = extract_pixels(
             &result.regions,
@@ -172,12 +198,26 @@ mod tests {
     #[test]
     fn test_gray_level_xor() {
         let img = [100, 100, 100, 100, 200, 100, 100, 100, 100];
-        let mut result =
-            make_tree_patch(&img, 3, 3, 3, 255, ConnectedType::FourConnected, 1);
+        let mut result = make_tree_patch(
+            &img,
+            3,
+            3,
+            3,
+            255,
+            ConnectedType::FourConnected,
+            1,
+        );
 
         let max_point = 9;
-        let valid_order =
-            recognize_mser(&mut result.regions, 1, 10.0, -1.0, 0.0, 1, max_point);
+        let valid_order = recognize_mser(
+            &mut result.regions,
+            1,
+            10.0,
+            -1.0,
+            0.0,
+            1,
+            max_point,
+        );
 
         let msers = extract_pixels(
             &result.regions,

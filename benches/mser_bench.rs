@@ -3,8 +3,8 @@ use image::{GrayImage, ImageReader};
 use std::time::Duration;
 use text_region_rs::params::{MserParams, ParallelConfig};
 use text_region_rs::{
-    extract_msers, extract_msers_parallel, extract_msers_v2, extract_msers_v2_parallel,
-    extract_msers_v2_partitioned,
+    extract_msers, extract_msers_parallel, extract_msers_v2,
+    extract_msers_v2_parallel, extract_msers_v2_partitioned,
 };
 
 fn load_grayscale(path: &str) -> (GrayImage, u32, u32) {
@@ -56,9 +56,15 @@ fn bench_all(c: &mut Criterion) {
     });
     for n in [2, 4, 8] {
         let c2 = ParallelConfig { num_patches: n };
-        g.bench_with_input(BenchmarkId::new("paper/v2_partitioned", n), &n, |b, _| {
-            b.iter(|| extract_msers_v2_partitioned(&img_p, &pp, &c2).unwrap())
-        });
+        g.bench_with_input(
+            BenchmarkId::new("paper/v2_partitioned", n),
+            &n,
+            |b, _| {
+                b.iter(|| {
+                    extract_msers_v2_partitioned(&img_p, &pp, &c2).unwrap()
+                })
+            },
+        );
     }
 
     // Label image
@@ -76,9 +82,15 @@ fn bench_all(c: &mut Criterion) {
     });
     for n in [2, 4, 8] {
         let c2 = ParallelConfig { num_patches: n };
-        g.bench_with_input(BenchmarkId::new("label/v2_partitioned", n), &n, |b, _| {
-            b.iter(|| extract_msers_v2_partitioned(&img_l, &pl, &c2).unwrap())
-        });
+        g.bench_with_input(
+            BenchmarkId::new("label/v2_partitioned", n),
+            &n,
+            |b, _| {
+                b.iter(|| {
+                    extract_msers_v2_partitioned(&img_l, &pl, &c2).unwrap()
+                })
+            },
+        );
     }
 
     g.finish();

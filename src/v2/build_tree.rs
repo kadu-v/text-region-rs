@@ -116,7 +116,8 @@ pub fn make_tree_patch_v2(
 
         // Explore all directions
         while nbr_index <= the_max_dir {
-            let nbr_pos = (pos as i32 + dir_offsets[nbr_index as usize]) as usize;
+            let nbr_pos =
+                (pos as i32 + dir_offsets[nbr_index as usize]) as usize;
 
             // If neighbor not visited (direction bits == 0)
             if (points[nbr_pos] & the_dir_mask) == 0 {
@@ -127,8 +128,9 @@ pub fn make_tree_patch_v2(
                     // Neighbor has lower gray: push current, descend
                     heap.push(heap_cur_level, pos);
                     points[pos] = (nbr_index + 1) << the_dir_shift;
-                    heap_cur_level =
-                        (heap_cur_level as i32 + (nbr_gray - curr_gray) as i32) as usize;
+                    heap_cur_level = (heap_cur_level as i32
+                        + (nbr_gray - curr_gray) as i32)
+                        as usize;
 
                     pos = nbr_pos;
 
@@ -139,14 +141,21 @@ pub fn make_tree_patch_v2(
                     comp_stack.push(cur_comp);
                     cur_comp = ConnectedCompV2::new();
                     cur_comp.gray_level = nbr_gray;
-                    init_comp_v2(&mut cur_comp, &mut regions, new_idx, patch_index);
+                    init_comp_v2(
+                        &mut cur_comp,
+                        &mut regions,
+                        new_idx,
+                        patch_index,
+                    );
                     curr_gray = nbr_gray;
                     nbr_index = 1;
                     continue;
                 }
 
                 // Push neighbor to its bucket
-                let target_level = (heap_cur_level as i32 + (nbr_gray - curr_gray) as i32) as usize;
+                let target_level = (heap_cur_level as i32
+                    + (nbr_gray - curr_gray) as i32)
+                    as usize;
                 heap.push(target_level, nbr_pos);
             }
 
@@ -195,12 +204,18 @@ pub fn make_tree_patch_v2(
 
                     regions.get_mut(cur_comp.region_idx).parent = Some(new_idx);
                     cur_comp.gray_level = pixel_val;
-                    new_region_v2(&mut cur_comp, &mut regions, new_idx, patch_index);
+                    new_region_v2(
+                        &mut cur_comp,
+                        &mut regions,
+                        new_idx,
+                        patch_index,
+                    );
                 } else {
                     loop {
                         let mut prev_comp = comp_stack.pop().unwrap();
                         // Merge: set parent and accumulate size
-                        regions.get_mut(cur_comp.region_idx).parent = Some(prev_comp.region_idx);
+                        regions.get_mut(cur_comp.region_idx).parent =
+                            Some(prev_comp.region_idx);
                         prev_comp.size += cur_comp.size;
                         cur_comp = prev_comp;
 
@@ -208,16 +223,23 @@ pub fn make_tree_patch_v2(
                             break;
                         }
 
-                        let prev_prev_gray = comp_stack.last().unwrap().gray_level;
+                        let prev_prev_gray =
+                            comp_stack.last().unwrap().gray_level;
 
                         if pixel_val < prev_prev_gray {
                             let mut new_r = MserRegionV2::new();
                             new_r.er_index = regions.len() as i32;
                             let new_idx = regions.add(new_r);
 
-                            regions.get_mut(cur_comp.region_idx).parent = Some(new_idx);
+                            regions.get_mut(cur_comp.region_idx).parent =
+                                Some(new_idx);
                             cur_comp.gray_level = pixel_val;
-                            new_region_v2(&mut cur_comp, &mut regions, new_idx, patch_index);
+                            new_region_v2(
+                                &mut cur_comp,
+                                &mut regions,
+                                new_idx,
+                                patch_index,
+                            );
                             break;
                         }
                     }
@@ -250,7 +272,15 @@ mod tests {
     #[test]
     fn test_v2_uniform() {
         let img = [100u8; 9];
-        let result = make_tree_patch_v2(&img, 3, 3, 3, 0, ConnectedType::FourConnected, 0);
+        let result = make_tree_patch_v2(
+            &img,
+            3,
+            3,
+            3,
+            0,
+            ConnectedType::FourConnected,
+            0,
+        );
 
         assert_eq!(count_roots(&result.regions), 1);
 
@@ -264,7 +294,15 @@ mod tests {
     #[test]
     fn test_v2_two_levels() {
         let img = [100, 100, 100, 100, 50, 100, 100, 100, 100];
-        let result = make_tree_patch_v2(&img, 3, 3, 3, 0, ConnectedType::FourConnected, 0);
+        let result = make_tree_patch_v2(
+            &img,
+            3,
+            3,
+            3,
+            0,
+            ConnectedType::FourConnected,
+            0,
+        );
 
         assert_eq!(count_roots(&result.regions), 1);
 
@@ -284,7 +322,15 @@ mod tests {
     #[test]
     fn test_v2_gradient() {
         let img = [0u8, 1, 2, 3, 4];
-        let result = make_tree_patch_v2(&img, 5, 1, 5, 0, ConnectedType::FourConnected, 0);
+        let result = make_tree_patch_v2(
+            &img,
+            5,
+            1,
+            5,
+            0,
+            ConnectedType::FourConnected,
+            0,
+        );
 
         assert_eq!(count_roots(&result.regions), 1);
 
@@ -311,7 +357,15 @@ mod tests {
     #[test]
     fn test_v2_er_index_mapping() {
         let img = [100, 100, 100, 100, 50, 100, 100, 100, 100];
-        let result = make_tree_patch_v2(&img, 3, 3, 3, 0, ConnectedType::FourConnected, 0);
+        let result = make_tree_patch_v2(
+            &img,
+            3,
+            3,
+            3,
+            0,
+            ConnectedType::FourConnected,
+            0,
+        );
 
         let the_dir_mask = dir_mask_v2(result.connected_type);
         let wb = result.width_with_boundary;
@@ -337,7 +391,15 @@ mod tests {
     #[test]
     fn test_v2_single_pixel() {
         let img = [42u8];
-        let result = make_tree_patch_v2(&img, 1, 1, 1, 0, ConnectedType::FourConnected, 0);
+        let result = make_tree_patch_v2(
+            &img,
+            1,
+            1,
+            1,
+            0,
+            ConnectedType::FourConnected,
+            0,
+        );
 
         assert_eq!(result.regions.len(), 1);
         assert_eq!(result.regions.get(0).size, 1);
@@ -352,8 +414,24 @@ mod tests {
         // [  0, 100,   0]
         let img = [0, 100, 0, 100, 0, 100, 0, 100, 0];
 
-        let result_4 = make_tree_patch_v2(&img, 3, 3, 3, 0, ConnectedType::FourConnected, 0);
-        let result_8 = make_tree_patch_v2(&img, 3, 3, 3, 0, ConnectedType::EightConnected, 0);
+        let result_4 = make_tree_patch_v2(
+            &img,
+            3,
+            3,
+            3,
+            0,
+            ConnectedType::FourConnected,
+            0,
+        );
+        let result_8 = make_tree_patch_v2(
+            &img,
+            3,
+            3,
+            3,
+            0,
+            ConnectedType::EightConnected,
+            0,
+        );
 
         let count_4_at_0: Vec<_> = (0..result_4.regions.len())
             .filter(|&i| result_4.regions.get(i).gray_level == 0)
@@ -374,7 +452,15 @@ mod tests {
     fn test_v2_8connected_sizes() {
         // 3x3: all 100 except center=50
         let img = [100, 100, 100, 100, 50, 100, 100, 100, 100];
-        let result = make_tree_patch_v2(&img, 3, 3, 3, 0, ConnectedType::EightConnected, 0);
+        let result = make_tree_patch_v2(
+            &img,
+            3,
+            3,
+            3,
+            0,
+            ConnectedType::EightConnected,
+            0,
+        );
 
         assert_eq!(count_roots(&result.regions), 1);
 

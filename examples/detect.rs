@@ -38,7 +38,11 @@ fn draw_regions(base: &mut RgbImage, regions: &[MserRegion], color: Rgb<u8>) {
 fn draw_pixels(base: &mut RgbImage, regions: &[MserRegion], color: Rgb<u8>) {
     for r in regions {
         for pt in &r.points {
-            if pt.x >= 0 && pt.x < base.width() as i32 && pt.y >= 0 && pt.y < base.height() as i32 {
+            if pt.x >= 0
+                && pt.x < base.width() as i32
+                && pt.y >= 0
+                && pt.y < base.height() as i32
+            {
                 base.put_pixel(pt.x as u32, pt.y as u32, color);
             }
         }
@@ -49,7 +53,9 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: {} <image_path> [--v2] [--8conn]", args[0]);
-        eprintln!("  Outputs: <image_path>_mser_bbox.png and <image_path>_mser_pixels.png");
+        eprintln!(
+            "  Outputs: <image_path>_mser_bbox.png and <image_path>_mser_pixels.png"
+        );
         std::process::exit(1);
     }
 

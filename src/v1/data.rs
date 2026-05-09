@@ -103,7 +103,10 @@ pub const BOUNDARY_YES_MASK: i16 = 0x4000;
 pub const GRAY_MASK_BITS: i16 = 0x01ff;
 pub const VISITED_FLAG: i16 = -0x8000i16; // 0x8000 as signed
 
-pub fn compute_dir_offsets(connected_type: ConnectedType, row_step: i32) -> Vec<i32> {
+pub fn compute_dir_offsets(
+    connected_type: ConnectedType,
+    row_step: i32,
+) -> Vec<i32> {
     match connected_type {
         ConnectedType::FourConnected => vec![1, -row_step, -1, row_step],
         ConnectedType::EightConnected => vec![

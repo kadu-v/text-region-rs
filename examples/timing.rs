@@ -31,14 +31,21 @@ fn parse_args() -> Args {
         match args[i].as_str() {
             "--image" => {
                 i += 1;
-                image_path = args.get(i).expect("--image requires a path").clone();
+                image_path =
+                    args.get(i).expect("--image requires a path").clone();
             }
             "--variant" => {
                 i += 1;
-                variant = match args.get(i).expect("--variant requires a value").as_str() {
+                variant = match args
+                    .get(i)
+                    .expect("--variant requires a value")
+                    .as_str()
+                {
                     "all" => Variant::All,
                     "single" | "v2_single" => Variant::Single,
-                    "partitioned" | "part" | "v2_partitioned" => Variant::Partitioned,
+                    "partitioned" | "part" | "v2_partitioned" => {
+                        Variant::Partitioned
+                    }
                     other => panic!("unknown variant: {other}"),
                 };
             }
@@ -120,7 +127,8 @@ fn main() -> Result<()> {
             for num_patches in [2, 4] {
                 let cfg = ParallelConfig { num_patches };
                 let t = Instant::now();
-                let result = extract_msers_v2_partitioned(&gray, &params, &cfg)?;
+                let result =
+                    extract_msers_v2_partitioned(&gray, &params, &cfg)?;
                 println!(
                     "v2_part/{}: {:?}  regions: {}/{}",
                     num_patches,

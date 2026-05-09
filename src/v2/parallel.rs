@@ -2,7 +2,8 @@ use rayon::prelude::*;
 
 use crate::block_memory::BlockMemory;
 use crate::error::{
-    Result, checked_image_len, validate_gray_image_input, validate_raw_image_input,
+    Result, checked_image_len, validate_gray_image_input,
+    validate_raw_image_input,
 };
 use crate::params::{ConnectedType, MserParams, ParallelConfig};
 use crate::partition::*;
@@ -40,7 +41,8 @@ fn build_trees_parallel(
         .map(|patch| {
             debug_assert!(patch.x_start + patch.width <= img_width);
             debug_assert!(patch.y_start + patch.height <= img_height);
-            let patch_offset = (patch.y_start * img_width + patch.x_start) as usize;
+            let patch_offset =
+                (patch.y_start * img_width + patch.x_start) as usize;
             let sub_image = &image[patch_offset..];
             let tree = make_tree_patch_v2(
                 sub_image,
@@ -93,9 +95,11 @@ fn consolidate_patch_trees_v2(
 
         for row in 0..p.height {
             for col in 0..p.width {
-                let src_idx = ((row as i32 + 1) * p_wb + (col as i32 + 1)) as usize;
+                let src_idx =
+                    ((row as i32 + 1) * p_wb + (col as i32 + 1)) as usize;
                 let dst_idx = ((p.y_start as i32 + row as i32 + 1) * full_wb
-                    + (p.x_start as i32 + col as i32 + 1)) as usize;
+                    + (p.x_start as i32 + col as i32 + 1))
+                    as usize;
 
                 let point_val = tree.points[src_idx];
                 let dir_bits = point_val & the_dir_mask;
@@ -129,7 +133,10 @@ fn get_real_parent_for_merged(
     let max_depth = regions.len();
     while let Some(p) = parent {
         debug_assert!(p < regions.len(), "region parent index out of range");
-        debug_assert!(depth <= max_depth, "cycle detected in merged parent chain");
+        debug_assert!(
+            depth <= max_depth,
+            "cycle detected in merged parent chain"
+        );
         if depth > max_depth {
             parent = None;
             break;
@@ -146,14 +153,20 @@ fn get_real_parent_for_merged(
 }
 
 /// C++ get_real_for_merged: if the endpoint itself was merged, use its real parent.
-fn get_real_for_merged(regions: &BlockMemory<MserRegionV2>, idx: usize) -> Option<usize> {
+fn get_real_for_merged(
+    regions: &BlockMemory<MserRegionV2>,
+    idx: usize,
+) -> Option<usize> {
     let mut cur = Some(idx);
     let mut depth = 0usize;
     let max_depth = regions.len();
 
     while let Some(i) = cur {
         debug_assert!(i < regions.len(), "region index out of range");
-        debug_assert!(depth <= max_depth, "cycle detected in merged region chain");
+        debug_assert!(
+            depth <= max_depth,
+            "cycle detected in merged region chain"
+        );
         if depth > max_depth {
             return None;
         }
@@ -186,7 +199,11 @@ fn validate_parent_chains(regions: &BlockMemory<MserRegionV2>) {
 }
 
 /// Faithful port of C++ img_fast_mser_v2::connect().
-fn connect_v2(regions: &mut BlockMemory<MserRegionV2>, idx_a: usize, idx_b: usize) {
+fn connect_v2(
+    regions: &mut BlockMemory<MserRegionV2>,
+    idx_a: usize,
+    idx_b: usize,
+) {
     let mut bigger = get_real_for_merged(regions, idx_a);
     let mut smaller = get_real_for_merged(regions, idx_b);
     let mut pixel_size: i32 = 0;
@@ -267,10 +284,14 @@ fn merge_boundary_v2(
 
             for i in 0..len {
                 let col = start_col + i;
-                let a_idx = ((a_row as i32 + 1) * wb + (col as i32 + 1)) as usize;
-                let b_idx = ((b_row as i32 + 1) * wb + (col as i32 + 1)) as usize;
-                let er_a = (consolidated.points[a_idx] & !the_dir_mask) as usize;
-                let er_b = (consolidated.points[b_idx] & !the_dir_mask) as usize;
+                let a_idx =
+                    ((a_row as i32 + 1) * wb + (col as i32 + 1)) as usize;
+                let b_idx =
+                    ((b_row as i32 + 1) * wb + (col as i32 + 1)) as usize;
+                let er_a =
+                    (consolidated.points[a_idx] & !the_dir_mask) as usize;
+                let er_b =
+                    (consolidated.points[b_idx] & !the_dir_mask) as usize;
                 connect_v2(&mut consolidated.regions, er_a, er_b);
             }
         } else {
@@ -282,10 +303,14 @@ fn merge_boundary_v2(
 
             for i in 0..len {
                 let row = start_row + i;
-                let a_idx = ((row as i32 + 1) * wb + (a_col as i32 + 1)) as usize;
-                let b_idx = ((row as i32 + 1) * wb + (b_col as i32 + 1)) as usize;
-                let er_a = (consolidated.points[a_idx] & !the_dir_mask) as usize;
-                let er_b = (consolidated.points[b_idx] & !the_dir_mask) as usize;
+                let a_idx =
+                    ((row as i32 + 1) * wb + (a_col as i32 + 1)) as usize;
+                let b_idx =
+                    ((row as i32 + 1) * wb + (b_col as i32 + 1)) as usize;
+                let er_a =
+                    (consolidated.points[a_idx] & !the_dir_mask) as usize;
+                let er_b =
+                    (consolidated.points[b_idx] & !the_dir_mask) as usize;
                 connect_v2(&mut consolidated.regions, er_a, er_b);
             }
         }
@@ -306,7 +331,9 @@ fn run_v2_parallel_pipeline(
     boundary_edges: &[BoundaryEdge],
 ) -> Vec<MserRegion> {
     if patches.len() <= 1 {
-        return crate::v2::run_v2_pipeline(image, width, height, params, max_point, gray_mask);
+        return crate::v2::run_v2_pipeline(
+            image, width, height, params, max_point, gray_mask,
+        );
     }
 
     let patch_trees = build_trees_parallel(
@@ -317,8 +344,12 @@ fn run_v2_parallel_pipeline(
         params.connected_type,
         patches,
     );
-    let mut consolidated =
-        consolidate_patch_trees_v2(patch_trees, width, height, params.connected_type);
+    let mut consolidated = consolidate_patch_trees_v2(
+        patch_trees,
+        width,
+        height,
+        params.connected_type,
+    );
     merge_boundary_v2(&mut consolidated, boundary_edges, patches);
 
     let valid_order = recognize::recognize_mser_v2(
@@ -366,7 +397,8 @@ pub(crate) fn extract_msers_v2_partitioned_raw(
     config: &ParallelConfig,
 ) -> Result<MserResult> {
     validate_raw_image_input(image, width, height, params)?;
-    let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
+    let max_point = (params.max_point_ratio
+        * checked_image_len(width, height)? as f32) as i32;
     let grid = compute_grid_config(config.num_patches)?;
     let patches = compute_patches(width, height, &grid);
     let boundary_edges = compute_boundary_edges(&grid, &patches);
@@ -441,7 +473,8 @@ mod tests {
         let mut s_sorted: Vec<_> = single
             .iter()
             .map(|r| {
-                let mut pts: Vec<_> = r.points.iter().map(|p| (p.x, p.y)).collect();
+                let mut pts: Vec<_> =
+                    r.points.iter().map(|p| (p.x, p.y)).collect();
                 pts.sort();
                 (r.gray_level, pts)
             })
@@ -451,7 +484,8 @@ mod tests {
         let mut p_sorted: Vec<_> = parallel
             .iter()
             .map(|r| {
-                let mut pts: Vec<_> = r.points.iter().map(|p| (p.x, p.y)).collect();
+                let mut pts: Vec<_> =
+                    r.points.iter().map(|p| (p.x, p.y)).collect();
                 pts.sort();
                 (r.gray_level, pts)
             })
@@ -467,7 +501,11 @@ mod tests {
                 i,
                 s.0
             );
-            assert_eq!(s.1, p.1, "Points mismatch at region {} (gray={})", i, s.0);
+            assert_eq!(
+                s.1, p.1,
+                "Points mismatch at region {} (gray={})",
+                i, s.0
+            );
         }
     }
 
@@ -480,7 +518,9 @@ mod tests {
         };
         let config = ParallelConfig { num_patches: 1 };
         let single = extract_msers_v2_raw(&img, 20, 20, &params).unwrap();
-        let par = extract_msers_v2_partitioned_raw(&img, 20, 20, &params, &config).unwrap();
+        let par =
+            extract_msers_v2_partitioned_raw(&img, 20, 20, &params, &config)
+                .unwrap();
         compare_results(&single.from_min, &par.from_min);
         compare_results(&single.from_max, &par.from_max);
     }
@@ -494,7 +534,9 @@ mod tests {
         };
         let config = ParallelConfig { num_patches: 4 };
         let single = extract_msers_v2_raw(&img, 20, 20, &params).unwrap();
-        let par = extract_msers_v2_partitioned_raw(&img, 20, 20, &params, &config).unwrap();
+        let par =
+            extract_msers_v2_partitioned_raw(&img, 20, 20, &params, &config)
+                .unwrap();
         compare_results(&single.from_min, &par.from_min);
     }
 
@@ -514,7 +556,9 @@ mod tests {
         };
         let config = ParallelConfig { num_patches: 4 };
         let single = extract_msers_v2_raw(&img, 20, 20, &params).unwrap();
-        let par = extract_msers_v2_partitioned_raw(&img, 20, 20, &params, &config).unwrap();
+        let par =
+            extract_msers_v2_partitioned_raw(&img, 20, 20, &params, &config)
+                .unwrap();
         compare_results(&single.from_min, &par.from_min);
         compare_results(&single.from_max, &par.from_max);
     }
@@ -528,7 +572,9 @@ mod tests {
         };
         let config = ParallelConfig { num_patches: 2 };
         let single = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
-        let par = extract_msers_v2_partitioned_raw(&img, 10, 10, &params, &config).unwrap();
+        let par =
+            extract_msers_v2_partitioned_raw(&img, 10, 10, &params, &config)
+                .unwrap();
         compare_results(&single.from_min, &par.from_min);
     }
 
@@ -541,7 +587,9 @@ mod tests {
         };
         let config = ParallelConfig { num_patches: 4 };
         let single = extract_msers_v2_raw(&img, 15, 13, &params).unwrap();
-        let par = extract_msers_v2_partitioned_raw(&img, 15, 13, &params, &config).unwrap();
+        let par =
+            extract_msers_v2_partitioned_raw(&img, 15, 13, &params, &config)
+                .unwrap();
         compare_results(&single.from_min, &par.from_min);
     }
 

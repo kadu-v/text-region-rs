@@ -70,16 +70,16 @@ pub fn boundary_pixel(connected_type: ConnectedType) -> u32 {
     }
 }
 
-pub fn compute_dir_offsets_v2(connected_type: ConnectedType, row_step: i32) -> Vec<i32> {
+pub fn compute_dir_offsets_v2(
+    connected_type: ConnectedType,
+    row_step: i32,
+) -> Vec<i32> {
     // V2 uses 1-indexed directions (dir[1]..dir[4] or dir[1]..dir[8])
     // We store index 0 as unused, directions start at index 1
     match connected_type {
         ConnectedType::FourConnected => vec![
             0, // unused index 0
-            1,
-            -row_step,
-            -1,
-            row_step,
+            1, -row_step, -1, row_step,
         ],
         ConnectedType::EightConnected => vec![
             0, // unused index 0

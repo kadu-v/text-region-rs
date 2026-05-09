@@ -44,7 +44,9 @@ pub fn compute_variations(
         let mut parent_opt = get_set_real_parent_for_merged(regions, start_idx);
 
         while let Some(parent_idx) = parent_opt {
-            if (regions.get(parent_idx).gray_level as i32) > gray_level_threshold {
+            if (regions.get(parent_idx).gray_level as i32)
+                > gray_level_threshold
+            {
                 break;
             }
             start_idx = parent_idx;
@@ -54,7 +56,8 @@ pub fn compute_variations(
         let var = if parent_opt.is_some()
             || regions.get(start_idx).gray_level as i32 == gray_level_threshold
         {
-            (regions.get(start_idx).size - region_size) as f32 / region_size as f32
+            (regions.get(start_idx).size - region_size) as f32
+                / region_size as f32
         } else {
             -1.0
         };
@@ -107,22 +110,28 @@ pub fn apply_nms_and_count(
             if nms_similarity >= 0.0
                 && regions.get(i).var >= 0.0
                 && regions.get(parent_idx).var >= 0.0
-                && regions.get(parent_idx).gray_level as u16 == regions.get(i).gray_level as u16 + 1
+                && regions.get(parent_idx).gray_level as u16
+                    == regions.get(i).gray_level as u16 + 1
             {
-                let sub_value =
-                    regions.get(parent_idx).var as f64 - regions.get(i).var as f64;
+                let sub_value = regions.get(parent_idx).var as f64
+                    - regions.get(i).var as f64;
                 if sub_value > nms_similarity as f64 {
-                    if regions.get(parent_idx).region_flag == RegionFlag::Unknown {
+                    if regions.get(parent_idx).region_flag
+                        == RegionFlag::Unknown
+                    {
                         if regions.get(parent_idx).calculated_var {
-                            region_level_size[regions.get(parent_idx).gray_level as usize] -= 1;
+                            region_level_size[regions.get(parent_idx).gray_level
+                                as usize] -= 1;
                             total_unknown -= 1;
                         }
-                        regions.get_mut(parent_idx).region_flag = RegionFlag::Invalid;
+                        regions.get_mut(parent_idx).region_flag =
+                            RegionFlag::Invalid;
                     }
                 } else if -sub_value > nms_similarity as f64 {
                     if regions.get(i).region_flag == RegionFlag::Unknown {
                         if regions.get(i).calculated_var {
-                            region_level_size[regions.get(i).gray_level as usize] -= 1;
+                            region_level_size
+                                [regions.get(i).gray_level as usize] -= 1;
                             total_unknown -= 1;
                         }
                         regions.get_mut(i).region_flag = RegionFlag::Invalid;
@@ -182,7 +191,9 @@ fn get_duplicated_regions(
             break;
         }
 
-        if parent.region_flag == RegionFlag::Invalid || parent.region_flag == RegionFlag::Valid {
+        if parent.region_flag == RegionFlag::Invalid
+            || parent.region_flag == RegionFlag::Valid
+        {
             parent_opt = parent.parent;
             continue;
         }
@@ -217,14 +228,28 @@ pub fn remove_duplicates(
 
         helper.clear();
         helper.push(idx);
-        get_duplicated_regions(regions, idx, idx, max_point, dup_var, &mut helper);
+        get_duplicated_regions(
+            regions,
+            idx,
+            idx,
+            max_point,
+            dup_var,
+            &mut helper,
+        );
 
         let middle_index = helper.len() / 2;
 
         if middle_index > 0 {
             let middle_idx = helper[middle_index];
             let last_idx = *helper.last().unwrap();
-            get_duplicated_regions(regions, middle_idx, last_idx, max_point, dup_var, &mut helper);
+            get_duplicated_regions(
+                regions,
+                middle_idx,
+                last_idx,
+                max_point,
+                dup_var,
+                &mut helper,
+            );
         }
 
         for (j, &region_idx) in helper.iter().enumerate() {
@@ -255,8 +280,10 @@ pub fn recognize_mser_v2(
     max_point: i32,
 ) -> Vec<usize> {
     compute_variations(regions, delta, stable_variation, min_point, max_point);
-    let (region_level_size, total_unknown) = apply_nms_and_count(regions, nms_similarity);
-    let gray_order = build_gray_order(regions, &region_level_size, total_unknown);
+    let (region_level_size, total_unknown) =
+        apply_nms_and_count(regions, nms_similarity);
+    let gray_order =
+        build_gray_order(regions, &region_level_size, total_unknown);
     remove_duplicates(regions, &gray_order, max_point, duplicated_variation)
 }
 
@@ -408,7 +435,8 @@ mod tests {
     #[test]
     fn test_v2_full_pipeline() {
         let mut regions = make_chain_v2(&[(0, 10), (1, 12), (2, 50), (3, 200)]);
-        let valid = recognize_mser_v2(&mut regions, 1, 10.0, -1.0, 0.0, 1, 1000);
+        let valid =
+            recognize_mser_v2(&mut regions, 1, 10.0, -1.0, 0.0, 1, 1000);
 
         assert!(!valid.is_empty());
         for &idx in &valid {

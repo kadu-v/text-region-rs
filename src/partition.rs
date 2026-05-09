@@ -37,7 +37,11 @@ pub fn compute_grid_config(num_patches: u32) -> Result<GridConfig> {
     }
 }
 
-pub fn compute_patches(width: u32, height: u32, grid: &GridConfig) -> Vec<PatchInfo> {
+pub fn compute_patches(
+    width: u32,
+    height: u32,
+    grid: &GridConfig,
+) -> Vec<PatchInfo> {
     let mut patches = Vec::with_capacity((grid.cols * grid.rows) as usize);
 
     for row in 0..grid.rows {
@@ -65,7 +69,10 @@ pub fn compute_patches(width: u32, height: u32, grid: &GridConfig) -> Vec<PatchI
     patches
 }
 
-pub fn compute_boundary_edges(grid: &GridConfig, patches: &[PatchInfo]) -> Vec<BoundaryEdge> {
+pub fn compute_boundary_edges(
+    grid: &GridConfig,
+    patches: &[PatchInfo],
+) -> Vec<BoundaryEdge> {
     let mut edges = Vec::new();
 
     for row in 0..grid.rows {
@@ -98,11 +105,18 @@ pub fn compute_boundary_edges(grid: &GridConfig, patches: &[PatchInfo]) -> Vec<B
     edges
 }
 
-pub fn extract_patch_image(image: &[u8], img_width: u32, patch: &PatchInfo) -> Vec<u8> {
+pub fn extract_patch_image(
+    image: &[u8],
+    img_width: u32,
+    patch: &PatchInfo,
+) -> Vec<u8> {
     let mut sub = Vec::with_capacity((patch.width * patch.height) as usize);
     for row in 0..patch.height {
-        let src_offset = ((patch.y_start + row) * img_width + patch.x_start) as usize;
-        sub.extend_from_slice(&image[src_offset..src_offset + patch.width as usize]);
+        let src_offset =
+            ((patch.y_start + row) * img_width + patch.x_start) as usize;
+        sub.extend_from_slice(
+            &image[src_offset..src_offset + patch.width as usize],
+        );
     }
     sub
 }
@@ -182,8 +196,10 @@ mod tests {
 
         assert_eq!(edges.len(), 4);
 
-        let vertical: Vec<_> = edges.iter().filter(|e| !e.is_horizontal).collect();
-        let horizontal: Vec<_> = edges.iter().filter(|e| e.is_horizontal).collect();
+        let vertical: Vec<_> =
+            edges.iter().filter(|e| !e.is_horizontal).collect();
+        let horizontal: Vec<_> =
+            edges.iter().filter(|e| e.is_horizontal).collect();
         assert_eq!(vertical.len(), 2);
         assert_eq!(horizontal.len(), 2);
     }

@@ -41,8 +41,14 @@ pub fn extract_pixels_v2(
         let mut depth = 0usize;
 
         while let Some(parent_idx) = cur {
-            debug_assert!(parent_idx < num_regions, "region parent index out of range");
-            debug_assert!(depth <= num_regions, "cycle detected in valid parent chain");
+            debug_assert!(
+                parent_idx < num_regions,
+                "region parent index out of range"
+            );
+            debug_assert!(
+                depth <= num_regions,
+                "cycle detected in valid parent chain"
+            );
             if depth > num_regions {
                 break;
             }
@@ -82,7 +88,10 @@ pub fn extract_pixels_v2(
         let mut depth = 0usize;
 
         while let Some(parent_idx) = cur {
-            debug_assert!(parent_idx < num_regions, "region parent index out of range");
+            debug_assert!(
+                parent_idx < num_regions,
+                "region parent index out of range"
+            );
             debug_assert!(
                 depth <= num_regions,
                 "cycle detected in extraction parent chain"
@@ -124,7 +133,8 @@ pub fn extract_pixels_v2(
             if er_index < num_regions {
                 let mser_index = region_heap[er_index];
                 if mser_index >= 0 {
-                    mser_points[mser_index as usize].push(Point { x: col, y: row });
+                    mser_points[mser_index as usize]
+                        .push(Point { x: col, y: row });
                 }
             }
         }
@@ -204,7 +214,12 @@ mod tests {
     use crate::v2::build_tree::make_tree_patch_v2;
     use crate::v2::recognize::recognize_mser_v2;
 
-    fn run_v2_pipeline(img: &[u8], width: u32, height: u32, gray_mask: u8) -> Vec<MserRegion> {
+    fn run_v2_pipeline(
+        img: &[u8],
+        width: u32,
+        height: u32,
+        gray_mask: u8,
+    ) -> Vec<MserRegion> {
         let result = make_tree_patch_v2(
             img,
             width,
@@ -217,7 +232,8 @@ mod tests {
 
         let mut regions = result.regions;
         let max_point = (0.5 * (width * height) as f32) as i32;
-        let valid_order = recognize_mser_v2(&mut regions, 1, 10.0, -1.0, 0.0, 1, max_point);
+        let valid_order =
+            recognize_mser_v2(&mut regions, 1, 10.0, -1.0, 0.0, 1, max_point);
 
         extract_pixels_v2(
             &mut regions,
@@ -252,10 +268,19 @@ mod tests {
     #[test]
     fn test_v2_extract_coordinates() {
         let img = [100, 100, 100, 100, 50, 100, 100, 100, 100];
-        let result = make_tree_patch_v2(&img, 3, 3, 3, 0, ConnectedType::FourConnected, 0);
+        let result = make_tree_patch_v2(
+            &img,
+            3,
+            3,
+            3,
+            0,
+            ConnectedType::FourConnected,
+            0,
+        );
 
         let mut regions = result.regions;
-        let valid_order = recognize_mser_v2(&mut regions, 1, 10.0, -1.0, 0.0, 1, 9);
+        let valid_order =
+            recognize_mser_v2(&mut regions, 1, 10.0, -1.0, 0.0, 1, 9);
 
         let msers = extract_pixels_v2(
             &mut regions,

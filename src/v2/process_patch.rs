@@ -83,8 +83,14 @@ mod tests {
     #[test]
     fn test_v2_extended_image() {
         let img = [42u8];
-        let result =
-            process_tree_patch_v2(&img, 1, 1, 1, 0, ConnectedType::FourConnected);
+        let result = process_tree_patch_v2(
+            &img,
+            1,
+            1,
+            1,
+            0,
+            ConnectedType::FourConnected,
+        );
 
         assert_eq!(result.width_with_boundary, 3);
         assert_eq!(result.height_with_boundary, 3);
@@ -113,8 +119,14 @@ mod tests {
     #[test]
     fn test_v2_level_size() {
         let img = [0, 0, 1, 1, 1, 2];
-        let result =
-            process_tree_patch_v2(&img, 3, 2, 3, 0, ConnectedType::FourConnected);
+        let result = process_tree_patch_v2(
+            &img,
+            3,
+            2,
+            3,
+            0,
+            ConnectedType::FourConnected,
+        );
 
         assert_eq!(result.level_size[0], 2);
         assert_eq!(result.level_size[1], 3);

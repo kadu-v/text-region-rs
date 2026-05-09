@@ -92,7 +92,12 @@ fn assert_invariants(regions: &[MserRegion], w: u32, h: u32, label: &str) {
     }
 }
 
-fn assert_size_filter(regions: &[MserRegion], min_point: usize, max_point: usize, label: &str) {
+fn assert_size_filter(
+    regions: &[MserRegion],
+    min_point: usize,
+    max_point: usize,
+    label: &str,
+) {
     for (i, r) in regions.iter().enumerate() {
         assert!(
             r.points.len() >= min_point,
@@ -365,10 +370,30 @@ fn e2e_label_min_point_respects_filter() {
     let v1 = extract_msers(&img, &params).unwrap();
     let v2 = extract_msers_v2(&img, &params).unwrap();
 
-    assert_size_filter(&v1.from_min, min_pt as usize, usize::MAX, "V1 from_min");
-    assert_size_filter(&v1.from_max, min_pt as usize, usize::MAX, "V1 from_max");
-    assert_size_filter(&v2.from_min, min_pt as usize, usize::MAX, "V2 from_min");
-    assert_size_filter(&v2.from_max, min_pt as usize, usize::MAX, "V2 from_max");
+    assert_size_filter(
+        &v1.from_min,
+        min_pt as usize,
+        usize::MAX,
+        "V1 from_min",
+    );
+    assert_size_filter(
+        &v1.from_max,
+        min_pt as usize,
+        usize::MAX,
+        "V1 from_max",
+    );
+    assert_size_filter(
+        &v2.from_min,
+        min_pt as usize,
+        usize::MAX,
+        "V2 from_min",
+    );
+    assert_size_filter(
+        &v2.from_max,
+        min_pt as usize,
+        usize::MAX,
+        "V2 from_max",
+    );
 }
 
 // ===========================================================================
@@ -731,7 +756,12 @@ fn e2e_label_deterministic_v2() {
 // 15. V1/V2 検出数の近さ（完全一致ではなく1%以内）
 // ===========================================================================
 
-fn assert_v1_v2_close(v1_count: usize, v2_count: usize, tolerance_pct: f64, label: &str) {
+fn assert_v1_v2_close(
+    v1_count: usize,
+    v2_count: usize,
+    tolerance_pct: f64,
+    label: &str,
+) {
     if v1_count == 0 && v2_count == 0 {
         return;
     }
@@ -757,8 +787,18 @@ fn e2e_paper_v1_v2_count_close() {
     let v1 = extract_msers(&img, &params).unwrap();
     let v2 = extract_msers_v2(&img, &params).unwrap();
 
-    assert_v1_v2_close(v1.from_min.len(), v2.from_min.len(), 1.0, "paper from_min");
-    assert_v1_v2_close(v1.from_max.len(), v2.from_max.len(), 1.0, "paper from_max");
+    assert_v1_v2_close(
+        v1.from_min.len(),
+        v2.from_min.len(),
+        1.0,
+        "paper from_min",
+    );
+    assert_v1_v2_close(
+        v1.from_max.len(),
+        v2.from_max.len(),
+        1.0,
+        "paper from_max",
+    );
 }
 
 #[test]
@@ -769,8 +809,18 @@ fn e2e_label_v1_v2_count_close() {
     let v1 = extract_msers(&img, &params).unwrap();
     let v2 = extract_msers_v2(&img, &params).unwrap();
 
-    assert_v1_v2_close(v1.from_min.len(), v2.from_min.len(), 1.0, "label from_min");
-    assert_v1_v2_close(v1.from_max.len(), v2.from_max.len(), 1.0, "label from_max");
+    assert_v1_v2_close(
+        v1.from_min.len(),
+        v2.from_min.len(),
+        1.0,
+        "label from_min",
+    );
+    assert_v1_v2_close(
+        v1.from_max.len(),
+        v2.from_max.len(),
+        1.0,
+        "label from_max",
+    );
 }
 
 // ===========================================================================

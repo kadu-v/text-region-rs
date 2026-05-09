@@ -18,7 +18,9 @@ pub enum MserError {
         height: u32,
     },
 
-    #[error("image dimensions are too large for internal buffers: {width}x{height}")]
+    #[error(
+        "image dimensions are too large for internal buffers: {width}x{height}"
+    )]
     ImageDimensionsTooLarge { width: u32, height: u32 },
 
     #[error("invalid MSER parameter `{field}`: {message}")]
@@ -27,7 +29,9 @@ pub enum MserError {
         message: &'static str,
     },
 
-    #[error("invalid number of patches {num_patches}; expected one of 1, 2, 4, 8, 16, or 32")]
+    #[error(
+        "invalid number of patches {num_patches}; expected one of 1, 2, 4, 8, 16, or 32"
+    )]
     InvalidNumPatches { num_patches: u32 },
 
     #[error(transparent)]
@@ -37,7 +41,10 @@ pub enum MserError {
     Image(#[from] image::ImageError),
 }
 
-pub(crate) fn validate_gray_image_input(image: &GrayImage, params: &MserParams) -> Result<()> {
+pub(crate) fn validate_gray_image_input(
+    image: &GrayImage,
+    params: &MserParams,
+) -> Result<()> {
     validate_image_dimensions(image.width(), image.height())?;
     validate_params(params)
 }
@@ -92,12 +99,12 @@ fn checked_len(
     original_width: u32,
     original_height: u32,
 ) -> Result<usize> {
-    let len = width
-        .checked_mul(height)
-        .ok_or(MserError::ImageDimensionsTooLarge {
+    let len = width.checked_mul(height).ok_or(
+        MserError::ImageDimensionsTooLarge {
             width: original_width,
             height: original_height,
-        })?;
+        },
+    )?;
     if len > usize::MAX as u64 {
         return Err(MserError::ImageDimensionsTooLarge {
             width: original_width,
@@ -115,7 +122,10 @@ fn validate_params(params: &MserParams) -> Result<()> {
         return invalid_param("min_point", "must be non-negative");
     }
     if !params.max_point_ratio.is_finite() || params.max_point_ratio <= 0.0 {
-        return invalid_param("max_point_ratio", "must be finite and greater than zero");
+        return invalid_param(
+            "max_point_ratio",
+            "must be finite and greater than zero",
+        );
     }
     if !params.stable_variation.is_finite() {
         return invalid_param("stable_variation", "must be finite");
@@ -140,7 +150,9 @@ mod tests {
 
     #[test]
     fn raw_validation_rejects_image_buffer_length_mismatch() {
-        let err = validate_raw_image_input(&[0; 3], 2, 2, &MserParams::default()).unwrap_err();
+        let err =
+            validate_raw_image_input(&[0; 3], 2, 2, &MserParams::default())
+                .unwrap_err();
 
         assert!(matches!(
             err,
@@ -155,8 +167,13 @@ mod tests {
 
     #[test]
     fn validation_rejects_dimensions_too_large_for_internal_buffers() {
-        let err =
-            validate_raw_image_input(&[], 70_000, 70_000, &MserParams::default()).unwrap_err();
+        let err = validate_raw_image_input(
+            &[],
+            70_000,
+            70_000,
+            &MserParams::default(),
+        )
+        .unwrap_err();
 
         assert!(matches!(
             err,
