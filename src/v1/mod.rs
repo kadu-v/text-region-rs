@@ -1,81 +1,91 @@
-pub mod data;
-pub mod process_patch;
 pub mod build_tree;
-pub mod recognize;
+pub mod data;
 pub mod extract;
+pub mod process_patch;
+pub mod recognize;
 
-use crate::params::MserParams;
-use crate::types::MserResult;
+use crate::params::{MserParams, ParallelConfig};
+use crate::types::{MserRegion, MserResult};
 
-/// Extract MSERs from a grayscale image using Fast MSER V1 (single-threaded).
-pub fn extract_msers(
+fn run_v1_pipeline(
     image: &[u8],
     width: u32,
     height: u32,
     params: &MserParams,
-) -> MserResult {
+    max_point: i32,
+    gray_mask: u8,
+) -> Vec<MserRegion> {
+    let mut tree = build_tree::make_tree_patch(
+        image,
+        width,
+        height,
+        width,
+        gray_mask,
+        params.connected_type,
+        params.min_point,
+    );
+
+    let valid_order = recognize::recognize_mser(
+        &mut tree.regions,
+        params.delta,
+        params.stable_variation,
+        params.nms_similarity,
+        params.duplicated_variation,
+        params.min_point,
+        max_point,
+    );
+
+    extract::extract_pixels(
+        &tree.regions,
+        &mut tree.linked_points,
+        &valid_order,
+        gray_mask,
+    )
+}
+
+/// Extract MSERs from a grayscale image using Fast MSER V1 (single-threaded).
+pub fn extract_msers(image: &[u8], width: u32, height: u32, params: &MserParams) -> MserResult {
     let max_point = (params.max_point_ratio * (width * height) as f32) as i32;
     let mut result = MserResult::default();
 
     if params.from_min {
-        let mut tree = build_tree::make_tree_patch(
-            image,
-            width,
-            height,
-            width,
-            0,
-            params.connected_type,
-            params.min_point,
-        );
-
-        let valid_order = recognize::recognize_mser(
-            &mut tree.regions,
-            params.delta,
-            params.stable_variation,
-            params.nms_similarity,
-            params.duplicated_variation,
-            params.min_point,
-            max_point,
-        );
-
-        result.from_min = extract::extract_pixels(
-            &tree.regions,
-            &mut tree.linked_points,
-            &valid_order,
-            0,
-        );
+        result.from_min = run_v1_pipeline(image, width, height, params, max_point, 0);
     }
-
     if params.from_max {
-        let mut tree = build_tree::make_tree_patch(
-            image,
-            width,
-            height,
-            width,
-            255,
-            params.connected_type,
-            params.min_point,
-        );
-
-        let valid_order = recognize::recognize_mser(
-            &mut tree.regions,
-            params.delta,
-            params.stable_variation,
-            params.nms_similarity,
-            params.duplicated_variation,
-            params.min_point,
-            max_point,
-        );
-
-        result.from_max = extract::extract_pixels(
-            &tree.regions,
-            &mut tree.linked_points,
-            &valid_order,
-            255,
-        );
+        result.from_max = run_v1_pipeline(image, width, height, params, max_point, 255);
     }
 
     result
+}
+
+/// Extract MSERs using Fast MSER V1 with parallel from_min/from_max execution.
+pub fn extract_msers_parallel(
+    image: &[u8],
+    width: u32,
+    height: u32,
+    params: &MserParams,
+    _config: &ParallelConfig,
+) -> MserResult {
+    let max_point = (params.max_point_ratio * (width * height) as f32) as i32;
+
+    let (from_min, from_max) = rayon::join(
+        || {
+            if params.from_min {
+                run_v1_pipeline(image, width, height, params, max_point, 0)
+            } else {
+                vec![]
+            }
+        },
+        || {
+            if params.from_max {
+                run_v1_pipeline(image, width, height, params, max_point, 255)
+            } else {
+                vec![]
+            }
+        },
+    );
+
+    MserResult { from_min, from_max }
 }
 
 #[cfg(test)]
@@ -146,7 +156,11 @@ mod tests {
         let result = extract_msers(&img, 10, 10, &params);
 
         let total = result.from_min.len() + result.from_max.len();
-        assert!(total >= 2, "Should detect at least two MSERs, got {}", total);
+        assert!(
+            total >= 2,
+            "Should detect at least two MSERs, got {}",
+            total
+        );
     }
 
     #[test]
@@ -264,8 +278,11 @@ mod tests {
         assert!(total > 0, "Should detect MSERs with extreme gray levels");
 
         for m in &result.from_min {
-            assert!(m.gray_level == 0 || m.gray_level == 255,
-                "Unexpected gray level: {}", m.gray_level);
+            assert!(
+                m.gray_level == 0 || m.gray_level == 255,
+                "Unexpected gray level: {}",
+                m.gray_level
+            );
         }
     }
 
@@ -307,11 +324,19 @@ mod tests {
             assert_eq!(region.points.len(), 9, "V1 level 10: expected 3x3=9 pixels");
         }
         if let Some(region) = r50 {
-            assert_eq!(region.points.len(), 49, "V1 level 50: expected 7x7=49 pixels");
+            assert_eq!(
+                region.points.len(),
+                49,
+                "V1 level 50: expected 7x7=49 pixels"
+            );
         }
         if let Some(region) = r100 {
             // rows 1..14, cols 1..14 → 13x13 = 169 pixels (including inner regions)
-            assert_eq!(region.points.len(), 169, "V1 level 100: expected 13x13=169 pixels");
+            assert_eq!(
+                region.points.len(),
+                169,
+                "V1 level 100: expected 13x13=169 pixels"
+            );
         }
     }
 
@@ -337,12 +362,21 @@ mod tests {
         };
         let result = extract_msers(&img, 10, 10, &params);
 
-        assert!(result.from_min.is_empty(), "from_min should be empty when disabled");
-        assert!(!result.from_max.is_empty(), "Should detect bright blob via from_max");
+        assert!(
+            result.from_min.is_empty(),
+            "from_min should be empty when disabled"
+        );
+        assert!(
+            !result.from_max.is_empty(),
+            "Should detect bright blob via from_max"
+        );
 
         for m in &result.from_max {
-            assert!(m.gray_level == 128 || m.gray_level == 200,
-                "from_max gray level should be original: got {}", m.gray_level);
+            assert!(
+                m.gray_level == 128 || m.gray_level == 200,
+                "from_max gray level should be original: got {}",
+                m.gray_level
+            );
             for pt in &m.points {
                 assert!(pt.x >= 0 && pt.x < 10 && pt.y >= 0 && pt.y < 10);
             }
@@ -369,8 +403,12 @@ mod tests {
         // Just verify no crash and coordinates are valid if any exist.
         for m in &result.from_min {
             for pt in &m.points {
-                assert!(pt.x >= 0 && pt.x < 2 && pt.y == 0,
-                    "1x2 point out of bounds: ({}, {})", pt.x, pt.y);
+                assert!(
+                    pt.x >= 0 && pt.x < 2 && pt.y == 0,
+                    "1x2 point out of bounds: ({}, {})",
+                    pt.x,
+                    pt.y
+                );
             }
         }
     }
@@ -404,8 +442,13 @@ mod tests {
             let mut sorted = m.points.clone();
             sorted.sort_by(|a, b| (a.y, a.x).cmp(&(b.y, b.x)));
             for w in sorted.windows(2) {
-                assert!(w[0] != w[1],
-                    "Duplicate pixel ({}, {}) in region gray={}", w[0].x, w[0].y, m.gray_level);
+                assert!(
+                    w[0] != w[1],
+                    "Duplicate pixel ({}, {}) in region gray={}",
+                    w[0].x,
+                    w[0].y,
+                    m.gray_level
+                );
             }
         }
     }

@@ -11,6 +11,8 @@
 #include <cmath>
 #include <string>
 #include <iostream>
+#include <chrono>
+#include <numeric>
 
 using std::vector;
 using std::string;
@@ -702,11 +704,16 @@ void draw_pixels(cv::Mat& img, const vector<cv::Point>& pts, cv::Scalar color) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <image_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <image_path> [--bench]" << std::endl;
         return 1;
     }
 
     string path = argv[1];
+    bool bench_mode = false;
+    for (int i = 2; i < argc; ++i) {
+        if (string(argv[i]) == "--bench") bench_mode = true;
+    }
+
     cv::Mat img = cv::imread(path);
     if (img.empty()) {
         std::cerr << "Failed to open: " << path << std::endl;
@@ -720,15 +727,62 @@ int main(int argc, char** argv) {
     float total_pixels = (float)(w * h);
     int min_point = std::max((int)(total_pixels * 0.0001f), 50);
 
-    FastMserV1 mser;
-    mser.params.delta = 5;
-    mser.params.min_point = min_point;
-    mser.params.max_point_ratio = 0.05f;
-    mser.params.stable_variation = 0.25f;
-    mser.params.duplicated_variation = 0.2f;
-    mser.params.nms_similarity = 0.5f;
-    mser.params.from_min = true;
-    mser.params.from_max = true;
+    auto make_mser = [&]() {
+        FastMserV1 mser;
+        mser.params.delta = 5;
+        mser.params.min_point = min_point;
+        mser.params.max_point_ratio = 0.05f;
+        mser.params.stable_variation = 0.25f;
+        mser.params.duplicated_variation = 0.2f;
+        mser.params.nms_similarity = 0.5f;
+        mser.params.from_min = true;
+        mser.params.from_max = true;
+        return mser;
+    };
+
+    if (bench_mode) {
+        const int N = 10;
+        const int WARMUP = 2;
+        std::cerr << "Benchmarking C++ MSER V1 on " << w << "x" << h << " (" << path << ")" << std::endl;
+        std::cerr << "  Warmup: " << WARMUP << " iterations, Measure: " << N << " iterations" << std::endl;
+
+        // Warmup
+        for (int i = 0; i < WARMUP; ++i) {
+            FastMserV1 mser = make_mser();
+            vector<OutputMser> fmin, fmax;
+            mser.extract(gray.data, w, h, (i32)gray.step[0], fmin, fmax);
+        }
+
+        vector<double> times;
+        times.reserve(N);
+        for (int i = 0; i < N; ++i) {
+            FastMserV1 mser = make_mser();
+            vector<OutputMser> fmin, fmax;
+            auto t0 = std::chrono::high_resolution_clock::now();
+            mser.extract(gray.data, w, h, (i32)gray.step[0], fmin, fmax);
+            auto t1 = std::chrono::high_resolution_clock::now();
+            double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            times.push_back(ms);
+        }
+
+        std::sort(times.begin(), times.end());
+        double sum = std::accumulate(times.begin(), times.end(), 0.0);
+        double mean = sum / N;
+        std::cerr << "  Results (" << N << " runs):" << std::endl;
+        std::cerr << "    min:  " << times.front() << " ms" << std::endl;
+        std::cerr << "    mean: " << mean << " ms" << std::endl;
+        std::cerr << "    max:  " << times.back() << " ms" << std::endl;
+        std::cerr << "    all:  [";
+        for (int i = 0; i < N; ++i) {
+            if (i > 0) std::cerr << ", ";
+            std::cerr << times[i];
+        }
+        std::cerr << "]" << std::endl;
+        return 0;
+    }
+
+    // Normal mode: detect + visualize
+    FastMserV1 mser = make_mser();
 
     std::cerr << "Detecting MSERs (C++ V1, 4-connected) on " << w << "x" << h << " image: " << path << std::endl;
 

@@ -5,7 +5,15 @@ edition = "2024"
 
 [dependencies]
 image = "0.25"
+rayon = "1.10"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [[example]]
 name = "detect"
 path = "examples/detect.rs"
+
+[[bench]]
+name = "mser_bench"
+harness = false

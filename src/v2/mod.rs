@@ -1,89 +1,99 @@
-pub mod data;
-pub mod process_patch;
 pub mod build_tree;
-pub mod recognize;
+pub mod data;
 pub mod extract;
+pub mod parallel;
+pub mod process_patch;
+pub mod recognize;
 
-use crate::params::MserParams;
-use crate::types::MserResult;
+use crate::params::{MserParams, ParallelConfig};
+use crate::types::{MserRegion, MserResult};
 
-/// Extract MSERs from a grayscale image using Fast MSER V2 (single-threaded).
-pub fn extract_msers_v2(
+pub use parallel::extract_msers_v2_partitioned;
+
+fn run_v2_pipeline(
     image: &[u8],
     width: u32,
     height: u32,
     params: &MserParams,
-) -> MserResult {
+    max_point: i32,
+    gray_mask: u8,
+) -> Vec<MserRegion> {
+    let tree = build_tree::make_tree_patch_v2(
+        image,
+        width,
+        height,
+        width,
+        gray_mask,
+        params.connected_type,
+        0,
+    );
+
+    let mut regions = tree.regions;
+    let valid_order = recognize::recognize_mser_v2(
+        &mut regions,
+        params.delta,
+        params.stable_variation,
+        params.nms_similarity,
+        params.duplicated_variation,
+        params.min_point,
+        max_point,
+    );
+
+    extract::extract_pixels_v2(
+        &mut regions,
+        &tree.points,
+        &valid_order,
+        tree.width,
+        tree.height,
+        tree.width_with_boundary,
+        tree.connected_type,
+        gray_mask,
+    )
+}
+
+/// Extract MSERs from a grayscale image using Fast MSER V2 (single-threaded).
+pub fn extract_msers_v2(image: &[u8], width: u32, height: u32, params: &MserParams) -> MserResult {
     let max_point = (params.max_point_ratio * (width * height) as f32) as i32;
     let mut result = MserResult::default();
 
     if params.from_min {
-        let tree = build_tree::make_tree_patch_v2(
-            image,
-            width,
-            height,
-            width,
-            0,
-            params.connected_type,
-        );
-
-        let mut regions = tree.regions;
-        let valid_order = recognize::recognize_mser_v2(
-            &mut regions,
-            params.delta,
-            params.stable_variation,
-            params.nms_similarity,
-            params.duplicated_variation,
-            params.min_point,
-            max_point,
-        );
-
-        result.from_min = extract::extract_pixels_v2(
-            &mut regions,
-            &tree.points,
-            &valid_order,
-            tree.width,
-            tree.height,
-            tree.width_with_boundary,
-            tree.connected_type,
-            0,
-        );
+        result.from_min = run_v2_pipeline(image, width, height, params, max_point, 0);
     }
-
     if params.from_max {
-        let tree = build_tree::make_tree_patch_v2(
-            image,
-            width,
-            height,
-            width,
-            255,
-            params.connected_type,
-        );
-
-        let mut regions = tree.regions;
-        let valid_order = recognize::recognize_mser_v2(
-            &mut regions,
-            params.delta,
-            params.stable_variation,
-            params.nms_similarity,
-            params.duplicated_variation,
-            params.min_point,
-            max_point,
-        );
-
-        result.from_max = extract::extract_pixels_v2(
-            &mut regions,
-            &tree.points,
-            &valid_order,
-            tree.width,
-            tree.height,
-            tree.width_with_boundary,
-            tree.connected_type,
-            255,
-        );
+        result.from_max = run_v2_pipeline(image, width, height, params, max_point, 255);
     }
 
     result
+}
+
+/// Extract MSERs using Fast MSER V2 with parallel from_min/from_max execution.
+pub fn extract_msers_v2_parallel(
+    image: &[u8],
+    width: u32,
+    height: u32,
+    params: &MserParams,
+    _config: &ParallelConfig,
+) -> MserResult {
+    let max_point = (params.max_point_ratio * (width * height) as f32) as i32;
+
+    let (from_min, from_max) = rayon::join(
+        || {
+            if params.from_min {
+                run_v2_pipeline(image, width, height, params, max_point, 0)
+            } else {
+                vec![]
+            }
+        },
+        || {
+            if params.from_max {
+                run_v2_pipeline(image, width, height, params, max_point, 255)
+            } else {
+                vec![]
+            }
+        },
+    );
+
+    MserResult { from_min, from_max }
 }
 
 #[cfg(test)]
@@ -142,7 +152,11 @@ mod tests {
         let result = extract_msers_v2(&img, 10, 10, &params);
 
         let total = result.from_min.len() + result.from_max.len();
-        assert!(total >= 2, "Should detect at least two MSERs, got {}", total);
+        assert!(
+            total >= 2,
+            "Should detect at least two MSERs, got {}",
+            total
+        );
     }
 
     #[test]
@@ -328,15 +342,29 @@ mod tests {
         let v1 = crate::v1::extract_msers(&img, 20, 20, &params);
         let v2 = extract_msers_v2(&img, 20, 20, &params);
 
-        assert_eq!(v1.from_min.len(), v2.from_min.len(),
-            "gradient: V1 from_min={}, V2 from_min={}", v1.from_min.len(), v2.from_min.len());
-        assert_eq!(v1.from_max.len(), v2.from_max.len(),
-            "gradient: V1 from_max={}, V2 from_max={}", v1.from_max.len(), v2.from_max.len());
+        assert_eq!(
+            v1.from_min.len(),
+            v2.from_min.len(),
+            "gradient: V1 from_min={}, V2 from_min={}",
+            v1.from_min.len(),
+            v2.from_min.len()
+        );
+        assert_eq!(
+            v1.from_max.len(),
+            v2.from_max.len(),
+            "gradient: V1 from_max={}, V2 from_max={}",
+            v1.from_max.len(),
+            v2.from_max.len()
+        );
 
         for (v1m, v2m) in v1.from_min.iter().zip(v2.from_min.iter()) {
             assert_eq!(v1m.gray_level, v2m.gray_level);
-            assert_eq!(v1m.points.len(), v2m.points.len(),
-                "pixel count mismatch at gray={}", v1m.gray_level);
+            assert_eq!(
+                v1m.points.len(),
+                v2m.points.len(),
+                "pixel count mismatch at gray={}",
+                v1m.gray_level
+            );
         }
     }
 
@@ -370,9 +398,17 @@ mod tests {
 
         for v1m in &v1.from_min {
             let v2m = v2.from_min.iter().find(|m| m.gray_level == v1m.gray_level);
-            assert!(v2m.is_some(), "V2 missing region at gray={}", v1m.gray_level);
-            assert_eq!(v1m.points.len(), v2m.unwrap().points.len(),
-                "nested pixel count mismatch at gray={}", v1m.gray_level);
+            assert!(
+                v2m.is_some(),
+                "V2 missing region at gray={}",
+                v1m.gray_level
+            );
+            assert_eq!(
+                v1m.points.len(),
+                v2m.unwrap().points.len(),
+                "nested pixel count mismatch at gray={}",
+                v1m.gray_level
+            );
         }
     }
 
@@ -407,10 +443,20 @@ mod tests {
         let v1 = crate::v1::extract_msers(&img, 20, 20, &params);
         let v2 = extract_msers_v2(&img, 20, 20, &params);
 
-        assert_eq!(v1.from_min.len(), v2.from_min.len(),
-            "nms+dup: V1={}, V2={}", v1.from_min.len(), v2.from_min.len());
-        assert_eq!(v1.from_max.len(), v2.from_max.len(),
-            "nms+dup from_max: V1={}, V2={}", v1.from_max.len(), v2.from_max.len());
+        assert_eq!(
+            v1.from_min.len(),
+            v2.from_min.len(),
+            "nms+dup: V1={}, V2={}",
+            v1.from_min.len(),
+            v2.from_min.len()
+        );
+        assert_eq!(
+            v1.from_max.len(),
+            v2.from_max.len(),
+            "nms+dup from_max: V1={}, V2={}",
+            v1.from_max.len(),
+            v2.from_max.len()
+        );
     }
 
     #[test]
@@ -443,14 +489,22 @@ mod tests {
 
         for m in &result.from_min {
             for pt in &m.points {
-                assert!(pt.x >= 0 && pt.x < 10 && pt.y >= 0 && pt.y < 10,
-                    "from_min point out of bounds: ({}, {})", pt.x, pt.y);
+                assert!(
+                    pt.x >= 0 && pt.x < 10 && pt.y >= 0 && pt.y < 10,
+                    "from_min point out of bounds: ({}, {})",
+                    pt.x,
+                    pt.y
+                );
             }
         }
         for m in &result.from_max {
             for pt in &m.points {
-                assert!(pt.x >= 0 && pt.x < 10 && pt.y >= 0 && pt.y < 10,
-                    "from_max point out of bounds: ({}, {})", pt.x, pt.y);
+                assert!(
+                    pt.x >= 0 && pt.x < 10 && pt.y >= 0 && pt.y < 10,
+                    "from_max point out of bounds: ({}, {})",
+                    pt.x,
+                    pt.y
+                );
             }
         }
     }
@@ -476,8 +530,13 @@ mod tests {
         let v1 = crate::v1::extract_msers(&img, 10, 10, &params);
         let v2 = extract_msers_v2(&img, 10, 10, &params);
 
-        assert_eq!(v1.from_min.len(), v2.from_min.len(),
-            "extreme gray: V1={}, V2={}", v1.from_min.len(), v2.from_min.len());
+        assert_eq!(
+            v1.from_min.len(),
+            v2.from_min.len(),
+            "extreme gray: V1={}, V2={}",
+            v1.from_min.len(),
+            v2.from_min.len()
+        );
     }
 
     #[test]
@@ -522,7 +581,11 @@ mod tests {
         }
         if let Some(region) = r100 {
             // rows 1..14, cols 1..14 → 13x13 = 169 pixels (including inner regions)
-            assert_eq!(region.points.len(), 169, "level 100: expected 13x13=169 pixels");
+            assert_eq!(
+                region.points.len(),
+                169,
+                "level 100: expected 13x13=169 pixels"
+            );
         }
     }
 
@@ -548,7 +611,12 @@ mod tests {
         let v1 = crate::v1::extract_msers(&img, 10, 10, &params);
         let v2 = extract_msers_v2(&img, 10, 10, &params);
 
-        assert_eq!(v1.from_min.len(), v2.from_min.len(),
-            "8conn: V1={}, V2={}", v1.from_min.len(), v2.from_min.len());
+        assert_eq!(
+            v1.from_min.len(),
+            v2.from_min.len(),
+            "8conn: V1={}, V2={}",
+            v1.from_min.len(),
+            v2.from_min.len()
+        );
     }
 }

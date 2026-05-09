@@ -33,6 +33,17 @@ impl Default for MserParams {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ParallelConfig {
+    pub num_patches: u32,
+}
+
+impl Default for ParallelConfig {
+    fn default() -> Self {
+        Self { num_patches: 4 }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

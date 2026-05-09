@@ -15,8 +15,8 @@ fn load_grayscale(path: &str) -> (Vec<u8>, u32, u32) {
     (img.into_raw(), w, h)
 }
 
-const IMG_PAPER: &str = "IMG_8237.jpeg";
-const IMG_LABEL: &str = "IMG_8364.jpeg";
+const IMG_PAPER: &str = "resource/IMG_8237.jpeg";
+const IMG_LABEL: &str = "resource/IMG_8364.jpeg";
 
 // ---------------------------------------------------------------------------
 // 不変条件チェックヘルパー
