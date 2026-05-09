@@ -1,3 +1,5 @@
+use crate::error::{MserError, Result};
+
 #[derive(Debug, Clone)]
 pub struct PatchInfo {
     pub patch_index: u8,
@@ -23,15 +25,15 @@ pub struct BoundaryEdge {
     pub length: u32,
 }
 
-pub fn compute_grid_config(num_patches: u32) -> GridConfig {
+pub fn compute_grid_config(num_patches: u32) -> Result<GridConfig> {
     match num_patches {
-        1 => GridConfig { cols: 1, rows: 1 },
-        2 => GridConfig { cols: 2, rows: 1 },
-        4 => GridConfig { cols: 2, rows: 2 },
-        8 => GridConfig { cols: 4, rows: 2 },
-        16 => GridConfig { cols: 4, rows: 4 },
-        32 => GridConfig { cols: 8, rows: 4 },
-        _ => panic!("num_patches must be 1, 2, 4, 8, 16, or 32"),
+        1 => Ok(GridConfig { cols: 1, rows: 1 }),
+        2 => Ok(GridConfig { cols: 2, rows: 1 }),
+        4 => Ok(GridConfig { cols: 2, rows: 2 }),
+        8 => Ok(GridConfig { cols: 4, rows: 2 }),
+        16 => Ok(GridConfig { cols: 4, rows: 4 }),
+        32 => Ok(GridConfig { cols: 8, rows: 4 }),
+        _ => Err(MserError::InvalidNumPatches { num_patches }),
     }
 }
 
@@ -111,14 +113,14 @@ mod tests {
 
     #[test]
     fn test_grid_1x1() {
-        let g = compute_grid_config(1);
+        let g = compute_grid_config(1).unwrap();
         assert_eq!(g.cols, 1);
         assert_eq!(g.rows, 1);
     }
 
     #[test]
     fn test_grid_2x2() {
-        let g = compute_grid_config(4);
+        let g = compute_grid_config(4).unwrap();
         assert_eq!(g.cols, 2);
         assert_eq!(g.rows, 2);
     }
@@ -127,7 +129,7 @@ mod tests {
     fn test_grid_configs() {
         let cases = [(2, 2, 1), (8, 4, 2), (16, 4, 4), (32, 8, 4)];
         for (n, c, r) in cases {
-            let g = compute_grid_config(n);
+            let g = compute_grid_config(n).unwrap();
             assert_eq!(g.cols, c, "num_patches={n}");
             assert_eq!(g.rows, r, "num_patches={n}");
         }
@@ -135,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_patches_even_split() {
-        let g = compute_grid_config(4);
+        let g = compute_grid_config(4).unwrap();
         let patches = compute_patches(100, 100, &g);
         assert_eq!(patches.len(), 4);
 
@@ -159,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_patches_uneven_split() {
-        let g = compute_grid_config(4);
+        let g = compute_grid_config(4).unwrap();
         let patches = compute_patches(101, 99, &g);
         assert_eq!(patches.len(), 4);
 
@@ -174,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_boundary_edges_4patches() {
-        let g = compute_grid_config(4);
+        let g = compute_grid_config(4).unwrap();
         let patches = compute_patches(100, 100, &g);
         let edges = compute_boundary_edges(&g, &patches);
 
@@ -188,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_boundary_edges_2patches() {
-        let g = compute_grid_config(2);
+        let g = compute_grid_config(2).unwrap();
         let patches = compute_patches(100, 50, &g);
         let edges = compute_boundary_edges(&g, &patches);
         assert_eq!(edges.len(), 1);
@@ -215,7 +217,7 @@ mod tests {
     #[test]
     fn test_patches_cover_image() {
         for n in [1, 2, 4, 8, 16, 32] {
-            let g = compute_grid_config(n);
+            let g = compute_grid_config(n).unwrap();
             let patches = compute_patches(640, 480, &g);
             assert_eq!(patches.len(), n as usize);
 

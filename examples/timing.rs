@@ -1,6 +1,7 @@
 use image::ImageReader;
 use std::env;
 use std::time::Instant;
+use text_region_rs::error::Result;
 use text_region_rs::params::{MserParams, ParallelConfig};
 use text_region_rs::{extract_msers_v2, extract_msers_v2_partitioned};
 
@@ -79,13 +80,10 @@ fn parse_args() -> Args {
     }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = parse_args();
 
-    let img = ImageReader::open(&args.image_path)
-        .unwrap()
-        .decode()
-        .unwrap();
+    let img = ImageReader::open(&args.image_path)?.decode()?;
     let gray = img.to_luma8();
     let w = gray.width();
     let h = gray.height();
@@ -110,7 +108,7 @@ fn main() {
 
         if args.variant == Variant::All || args.variant == Variant::Single {
             let t = Instant::now();
-            let result = extract_msers_v2(&pixels, w, h, &params);
+            let result = extract_msers_v2(&pixels, w, h, &params)?;
             println!(
                 "v2_single: {:?}  regions: {}/{}",
                 t.elapsed(),
@@ -123,7 +121,7 @@ fn main() {
             for num_patches in [2, 4] {
                 let cfg = ParallelConfig { num_patches };
                 let t = Instant::now();
-                let result = extract_msers_v2_partitioned(&pixels, w, h, &params, &cfg);
+                let result = extract_msers_v2_partitioned(&pixels, w, h, &params, &cfg)?;
                 println!(
                     "v2_part/{}: {:?}  regions: {}/{}",
                     num_patches,
@@ -137,7 +135,7 @@ fn main() {
                 num_patches: args.patches,
             };
             let t = Instant::now();
-            let result = extract_msers_v2_partitioned(&pixels, w, h, &params, &cfg);
+            let result = extract_msers_v2_partitioned(&pixels, w, h, &params, &cfg)?;
             println!(
                 "v2_part/{}: {:?}  regions: {}/{}",
                 args.patches,
@@ -147,4 +145,6 @@ fn main() {
             );
         }
     }
+
+    Ok(())
 }

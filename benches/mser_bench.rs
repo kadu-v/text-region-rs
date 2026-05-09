@@ -43,41 +43,41 @@ fn bench_all(c: &mut Criterion) {
 
     // Paper image
     g.bench_function("paper/v1_single", |b| {
-        b.iter(|| extract_msers(&img_p, wp, hp, &pp))
+        b.iter(|| extract_msers(&img_p, wp, hp, &pp).unwrap())
     });
     g.bench_function("paper/v1_par_minmax", |b| {
-        b.iter(|| extract_msers_parallel(&img_p, wp, hp, &pp, &cfg))
+        b.iter(|| extract_msers_parallel(&img_p, wp, hp, &pp, &cfg).unwrap())
     });
     g.bench_function("paper/v2_single", |b| {
-        b.iter(|| extract_msers_v2(&img_p, wp, hp, &pp))
+        b.iter(|| extract_msers_v2(&img_p, wp, hp, &pp).unwrap())
     });
     g.bench_function("paper/v2_par_minmax", |b| {
-        b.iter(|| extract_msers_v2_parallel(&img_p, wp, hp, &pp, &cfg))
+        b.iter(|| extract_msers_v2_parallel(&img_p, wp, hp, &pp, &cfg).unwrap())
     });
     for n in [2, 4, 8] {
         let c2 = ParallelConfig { num_patches: n };
         g.bench_with_input(BenchmarkId::new("paper/v2_partitioned", n), &n, |b, _| {
-            b.iter(|| extract_msers_v2_partitioned(&img_p, wp, hp, &pp, &c2))
+            b.iter(|| extract_msers_v2_partitioned(&img_p, wp, hp, &pp, &c2).unwrap())
         });
     }
 
     // Label image
     g.bench_function("label/v1_single", |b| {
-        b.iter(|| extract_msers(&img_l, wl, hl, &pl))
+        b.iter(|| extract_msers(&img_l, wl, hl, &pl).unwrap())
     });
     g.bench_function("label/v1_par_minmax", |b| {
-        b.iter(|| extract_msers_parallel(&img_l, wl, hl, &pl, &cfg))
+        b.iter(|| extract_msers_parallel(&img_l, wl, hl, &pl, &cfg).unwrap())
     });
     g.bench_function("label/v2_single", |b| {
-        b.iter(|| extract_msers_v2(&img_l, wl, hl, &pl))
+        b.iter(|| extract_msers_v2(&img_l, wl, hl, &pl).unwrap())
     });
     g.bench_function("label/v2_par_minmax", |b| {
-        b.iter(|| extract_msers_v2_parallel(&img_l, wl, hl, &pl, &cfg))
+        b.iter(|| extract_msers_v2_parallel(&img_l, wl, hl, &pl, &cfg).unwrap())
     });
     for n in [2, 4, 8] {
         let c2 = ParallelConfig { num_patches: n };
         g.bench_with_input(BenchmarkId::new("label/v2_partitioned", n), &n, |b, _| {
-            b.iter(|| extract_msers_v2_partitioned(&img_l, wl, hl, &pl, &c2))
+            b.iter(|| extract_msers_v2_partitioned(&img_l, wl, hl, &pl, &c2).unwrap())
         });
     }
 

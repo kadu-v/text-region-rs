@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 
 use crate::block_memory::BlockMemory;
+use crate::error::{Result, checked_image_len, validate_image_input};
 use crate::params::{ConnectedType, MserParams, ParallelConfig};
 use crate::partition::*;
 use crate::types::{MserRegion, MserResult};
@@ -345,9 +346,10 @@ pub fn extract_msers_v2_partitioned(
     height: u32,
     params: &MserParams,
     config: &ParallelConfig,
-) -> MserResult {
-    let max_point = (params.max_point_ratio * (width * height) as f32) as i32;
-    let grid = compute_grid_config(config.num_patches);
+) -> Result<MserResult> {
+    validate_image_input(image, width, height, params)?;
+    let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
+    let grid = compute_grid_config(config.num_patches)?;
     let patches = compute_patches(width, height, &grid);
     let boundary_edges = compute_boundary_edges(&grid, &patches);
 
@@ -386,7 +388,7 @@ pub fn extract_msers_v2_partitioned(
         },
     );
 
-    MserResult { from_min, from_max }
+    Ok(MserResult { from_min, from_max })
 }
 
 #[cfg(test)]
@@ -459,8 +461,8 @@ mod tests {
             ..default_params()
         };
         let config = ParallelConfig { num_patches: 1 };
-        let single = extract_msers_v2(&img, 20, 20, &params);
-        let par = extract_msers_v2_partitioned(&img, 20, 20, &params, &config);
+        let single = extract_msers_v2(&img, 20, 20, &params).unwrap();
+        let par = extract_msers_v2_partitioned(&img, 20, 20, &params, &config).unwrap();
         compare_results(&single.from_min, &par.from_min);
         compare_results(&single.from_max, &par.from_max);
     }
@@ -473,8 +475,8 @@ mod tests {
             ..default_params()
         };
         let config = ParallelConfig { num_patches: 4 };
-        let single = extract_msers_v2(&img, 20, 20, &params);
-        let par = extract_msers_v2_partitioned(&img, 20, 20, &params, &config);
+        let single = extract_msers_v2(&img, 20, 20, &params).unwrap();
+        let par = extract_msers_v2_partitioned(&img, 20, 20, &params, &config).unwrap();
         compare_results(&single.from_min, &par.from_min);
     }
 
@@ -493,8 +495,8 @@ mod tests {
             ..default_params()
         };
         let config = ParallelConfig { num_patches: 4 };
-        let single = extract_msers_v2(&img, 20, 20, &params);
-        let par = extract_msers_v2_partitioned(&img, 20, 20, &params, &config);
+        let single = extract_msers_v2(&img, 20, 20, &params).unwrap();
+        let par = extract_msers_v2_partitioned(&img, 20, 20, &params, &config).unwrap();
         compare_results(&single.from_min, &par.from_min);
         compare_results(&single.from_max, &par.from_max);
     }
@@ -507,8 +509,8 @@ mod tests {
             ..default_params()
         };
         let config = ParallelConfig { num_patches: 2 };
-        let single = extract_msers_v2(&img, 10, 10, &params);
-        let par = extract_msers_v2_partitioned(&img, 10, 10, &params, &config);
+        let single = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let par = extract_msers_v2_partitioned(&img, 10, 10, &params, &config).unwrap();
         compare_results(&single.from_min, &par.from_min);
     }
 
@@ -520,8 +522,8 @@ mod tests {
             ..default_params()
         };
         let config = ParallelConfig { num_patches: 4 };
-        let single = extract_msers_v2(&img, 15, 13, &params);
-        let par = extract_msers_v2_partitioned(&img, 15, 13, &params, &config);
+        let single = extract_msers_v2(&img, 15, 13, &params).unwrap();
+        let par = extract_msers_v2_partitioned(&img, 15, 13, &params, &config).unwrap();
         compare_results(&single.from_min, &par.from_min);
     }
 

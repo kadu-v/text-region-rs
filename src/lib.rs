@@ -1,4 +1,5 @@
 pub mod block_memory;
+pub mod error;
 pub mod heap;
 pub mod params;
 pub mod partition;

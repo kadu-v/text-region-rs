@@ -103,7 +103,7 @@ fn e2e_load_images() {
 fn e2e_paper_v1_detects_msers() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params);
+    let result = extract_msers(&img, w, h, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V1: paper image should have MSERs, got 0");
@@ -116,7 +116,7 @@ fn e2e_paper_v1_detects_msers() {
 fn e2e_paper_v2_detects_msers() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params);
+    let result = extract_msers_v2(&img, w, h, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V2: paper image should have MSERs, got 0");
@@ -133,7 +133,7 @@ fn e2e_paper_v2_detects_msers() {
 fn e2e_label_v1_detects_msers() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params);
+    let result = extract_msers(&img, w, h, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V1: label image should have MSERs, got 0");
@@ -143,7 +143,7 @@ fn e2e_label_v1_detects_msers() {
 fn e2e_label_v2_detects_msers() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params);
+    let result = extract_msers_v2(&img, w, h, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V2: label image should have MSERs, got 0");
@@ -157,7 +157,7 @@ fn e2e_label_v2_detects_msers() {
 fn e2e_paper_v1_invariants() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params);
+    let result = extract_msers(&img, w, h, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V1 from_min");
     assert_invariants(&result.from_max, w, h, "V1 from_max");
@@ -167,7 +167,7 @@ fn e2e_paper_v1_invariants() {
 fn e2e_paper_v2_invariants() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params);
+    let result = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V2 from_min");
     assert_invariants(&result.from_max, w, h, "V2 from_max");
@@ -181,7 +181,7 @@ fn e2e_paper_v2_invariants() {
 fn e2e_label_v1_invariants() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params);
+    let result = extract_msers(&img, w, h, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V1 from_min");
     assert_invariants(&result.from_max, w, h, "V1 from_max");
@@ -191,7 +191,7 @@ fn e2e_label_v1_invariants() {
 fn e2e_label_v2_invariants() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params);
+    let result = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V2 from_min");
     assert_invariants(&result.from_max, w, h, "V2 from_max");
@@ -206,8 +206,8 @@ fn e2e_paper_from_min_only() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams { from_min: true, from_max: false, ..MserParams::default() };
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert!(v1.from_max.is_empty());
     assert!(v2.from_max.is_empty());
@@ -220,8 +220,8 @@ fn e2e_paper_from_max_only() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams { from_min: false, from_max: true, ..MserParams::default() };
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert!(v1.from_min.is_empty());
     assert!(v2.from_min.is_empty());
@@ -232,8 +232,8 @@ fn e2e_label_from_min_only() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams { from_min: true, from_max: false, ..MserParams::default() };
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert!(v1.from_max.is_empty());
     assert!(v2.from_max.is_empty());
@@ -244,8 +244,8 @@ fn e2e_label_from_max_only() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams { from_min: false, from_max: true, ..MserParams::default() };
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert!(v1.from_min.is_empty());
     assert!(v2.from_min.is_empty());
@@ -261,7 +261,7 @@ fn e2e_paper_min_point_monotonic() {
 
     let count = |min_pt: i32| {
         let params = MserParams { min_point: min_pt, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params);
+        let r = extract_msers(&img, w, h, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -279,8 +279,8 @@ fn e2e_label_min_point_respects_filter() {
     let min_pt = 100;
     let params = MserParams { min_point: min_pt, ..MserParams::default() };
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert_size_filter(&v1.from_min, min_pt as usize, usize::MAX, "V1 from_min");
     assert_size_filter(&v1.from_max, min_pt as usize, usize::MAX, "V1 from_max");
@@ -299,8 +299,8 @@ fn e2e_label_max_point_respects_filter() {
     let max_point = (ratio * (w * h) as f32) as usize;
     let params = MserParams { max_point_ratio: ratio, ..MserParams::default() };
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert_size_filter(&v1.from_min, 0, max_point, "V1 from_min");
     assert_size_filter(&v1.from_max, 0, max_point, "V1 from_max");
@@ -314,7 +314,7 @@ fn e2e_paper_max_point_monotonic() {
 
     let count = |ratio: f32| {
         let params = MserParams { max_point_ratio: ratio, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params);
+        let r = extract_msers(&img, w, h, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -336,7 +336,7 @@ fn e2e_paper_delta_monotonic() {
 
     let count = |delta: i32| {
         let params = MserParams { delta, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params);
+        let r = extract_msers(&img, w, h, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -354,7 +354,7 @@ fn e2e_label_delta_monotonic() {
 
     let count = |delta: i32| {
         let params = MserParams { delta, ..MserParams::default() };
-        let r = extract_msers_v2(&img, w, h, &params);
+        let r = extract_msers_v2(&img, w, h, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -376,7 +376,7 @@ fn e2e_paper_stable_variation_monotonic() {
 
     let count = |sv: f32| {
         let params = MserParams { stable_variation: sv, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params);
+        let r = extract_msers(&img, w, h, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -394,7 +394,7 @@ fn e2e_label_stable_variation_monotonic() {
 
     let count = |sv: f32| {
         let params = MserParams { stable_variation: sv, ..MserParams::default() };
-        let r = extract_msers_v2(&img, w, h, &params);
+        let r = extract_msers_v2(&img, w, h, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -417,8 +417,8 @@ fn e2e_paper_nms_reduces_count() {
     let params_off = MserParams { nms_similarity: -1.0, ..MserParams::default() };
     let params_on = MserParams { nms_similarity: 0.0, ..MserParams::default() };
 
-    let off = extract_msers(&img, w, h, &params_off);
-    let on = extract_msers(&img, w, h, &params_on);
+    let off = extract_msers(&img, w, h, &params_off).unwrap();
+    let on = extract_msers(&img, w, h, &params_on).unwrap();
 
     let off_total = off.from_min.len() + off.from_max.len();
     let on_total = on.from_min.len() + on.from_max.len();
@@ -433,8 +433,8 @@ fn e2e_label_nms_reduces_count() {
     let params_off = MserParams { nms_similarity: -1.0, ..MserParams::default() };
     let params_on = MserParams { nms_similarity: 0.0, ..MserParams::default() };
 
-    let off = extract_msers_v2(&img, w, h, &params_off);
-    let on = extract_msers_v2(&img, w, h, &params_on);
+    let off = extract_msers_v2(&img, w, h, &params_off).unwrap();
+    let on = extract_msers_v2(&img, w, h, &params_on).unwrap();
 
     let off_total = off.from_min.len() + off.from_max.len();
     let on_total = on.from_min.len() + on.from_max.len();
@@ -453,8 +453,8 @@ fn e2e_paper_duplicated_variation() {
     let params_off = MserParams { duplicated_variation: 0.0, ..MserParams::default() };
     let params_on = MserParams { duplicated_variation: 0.2, ..MserParams::default() };
 
-    let off = extract_msers(&img, w, h, &params_off);
-    let on = extract_msers(&img, w, h, &params_on);
+    let off = extract_msers(&img, w, h, &params_off).unwrap();
+    let on = extract_msers(&img, w, h, &params_on).unwrap();
 
     let off_total = off.from_min.len() + off.from_max.len();
     let on_total = on.from_min.len() + on.from_max.len();
@@ -478,7 +478,7 @@ fn e2e_label_4conn_v1_invariants() {
         ..MserParams::default()
     };
 
-    let result = extract_msers(&img, w, h, &params);
+    let result = extract_msers(&img, w, h, &params).unwrap();
     assert_invariants(&result.from_min, w, h, "V1 4conn from_min");
     assert_invariants(&result.from_max, w, h, "V1 4conn from_max");
 }
@@ -491,7 +491,7 @@ fn e2e_label_8conn_v1_invariants() {
         ..MserParams::default()
     };
 
-    let result = extract_msers(&img, w, h, &params);
+    let result = extract_msers(&img, w, h, &params).unwrap();
     assert_invariants(&result.from_min, w, h, "V1 8conn from_min");
     assert_invariants(&result.from_max, w, h, "V1 8conn from_max");
 }
@@ -504,7 +504,7 @@ fn e2e_label_8conn_v2_invariants() {
         ..MserParams::default()
     };
 
-    let result = extract_msers_v2(&img, w, h, &params);
+    let result = extract_msers_v2(&img, w, h, &params).unwrap();
     assert_invariants(&result.from_min, w, h, "V2 8conn from_min");
     assert_invariants(&result.from_max, w, h, "V2 8conn from_max");
 }
@@ -518,8 +518,8 @@ fn e2e_paper_deterministic() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
 
-    let r1 = extract_msers(&img, w, h, &params);
-    let r2 = extract_msers(&img, w, h, &params);
+    let r1 = extract_msers(&img, w, h, &params).unwrap();
+    let r2 = extract_msers(&img, w, h, &params).unwrap();
 
     assert_eq!(r1.from_min.len(), r2.from_min.len());
     assert_eq!(r1.from_max.len(), r2.from_max.len());
@@ -535,8 +535,8 @@ fn e2e_label_deterministic_v2() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
 
-    let r1 = extract_msers_v2(&img, w, h, &params);
-    let r2 = extract_msers_v2(&img, w, h, &params);
+    let r1 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let r2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert_eq!(r1.from_min.len(), r2.from_min.len());
     assert_eq!(r1.from_max.len(), r2.from_max.len());
@@ -575,8 +575,8 @@ fn e2e_paper_v1_v2_count_close() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert_v1_v2_close(v1.from_min.len(), v2.from_min.len(), 1.0, "paper from_min");
     assert_v1_v2_close(v1.from_max.len(), v2.from_max.len(), 1.0, "paper from_max");
@@ -587,8 +587,8 @@ fn e2e_label_v1_v2_count_close() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
 
-    let v1 = extract_msers(&img, w, h, &params);
-    let v2 = extract_msers_v2(&img, w, h, &params);
+    let v1 = extract_msers(&img, w, h, &params).unwrap();
+    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
 
     assert_v1_v2_close(v1.from_min.len(), v2.from_min.len(), 1.0, "label from_min");
     assert_v1_v2_close(v1.from_max.len(), v2.from_max.len(), 1.0, "label from_max");
@@ -613,8 +613,8 @@ fn e2e_paper_multi_params_v1_v2_close() {
     ];
 
     for (i, params) in configs.iter().enumerate() {
-        let v1 = extract_msers(&img, w, h, params);
-        let v2 = extract_msers_v2(&img, w, h, params);
+        let v1 = extract_msers(&img, w, h, params).unwrap();
+        let v2 = extract_msers_v2(&img, w, h, params).unwrap();
 
         let label = format!("paper config {}", i);
         assert_v1_v2_close(
@@ -641,8 +641,8 @@ fn e2e_label_multi_params_v1_v2_close() {
     ];
 
     for (i, params) in configs.iter().enumerate() {
-        let v1 = extract_msers(&img, w, h, params);
-        let v2 = extract_msers_v2(&img, w, h, params);
+        let v1 = extract_msers(&img, w, h, params).unwrap();
+        let v2 = extract_msers_v2(&img, w, h, params).unwrap();
 
         let label = format!("label config {}", i);
         assert_v1_v2_close(

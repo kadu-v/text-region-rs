@@ -1,5 +1,6 @@
 use image::{ImageReader, Rgb, RgbImage};
 use std::env;
+use text_region_rs::error::Result;
 use text_region_rs::params::{ConnectedType, MserParams};
 use text_region_rs::types::MserRegion;
 use text_region_rs::{extract_msers, extract_msers_v2};
@@ -37,15 +38,14 @@ fn draw_regions(base: &mut RgbImage, regions: &[MserRegion], color: Rgb<u8>) {
 fn draw_pixels(base: &mut RgbImage, regions: &[MserRegion], color: Rgb<u8>) {
     for r in regions {
         for pt in &r.points {
-            if pt.x >= 0 && pt.x < base.width() as i32 && pt.y >= 0 && pt.y < base.height() as i32
-            {
+            if pt.x >= 0 && pt.x < base.width() as i32 && pt.y >= 0 && pt.y < base.height() as i32 {
                 base.put_pixel(pt.x as u32, pt.y as u32, color);
             }
         }
     }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: {} <image_path> [--v2] [--8conn]", args[0]);
@@ -57,16 +57,7 @@ fn main() {
     let use_v2 = args.iter().any(|a| a == "--v2");
     let use_8conn = args.iter().any(|a| a == "--8conn");
 
-    let img = ImageReader::open(path)
-        .unwrap_or_else(|e| {
-            eprintln!("Failed to open {}: {}", path, e);
-            std::process::exit(1);
-        })
-        .decode()
-        .unwrap_or_else(|e| {
-            eprintln!("Failed to decode {}: {}", path, e);
-            std::process::exit(1);
-        });
+    let img = ImageReader::open(path)?.decode()?;
 
     let gray = img.to_luma8();
     let w = gray.width();
@@ -98,9 +89,9 @@ fn main() {
     );
 
     let result = if use_v2 {
-        extract_msers_v2(&data, w, h, &params)
+        extract_msers_v2(&data, w, h, &params)?
     } else {
-        extract_msers(&data, w, h, &params)
+        extract_msers(&data, w, h, &params)?
     };
 
     eprintln!(
@@ -118,7 +109,7 @@ fn main() {
 
     let stem = path.rsplit_once('.').map_or(path.as_str(), |(s, _)| s);
     let bbox_path = format!("{}_mser_bbox.png", stem);
-    bbox_img.save(&bbox_path).unwrap();
+    bbox_img.save(&bbox_path)?;
     eprintln!("  Saved bounding boxes: {}", bbox_path);
 
     // --- Pixel visualization ---
@@ -133,6 +124,8 @@ fn main() {
     draw_pixels(&mut pixel_img, &result.from_max, Rgb([50, 50, 255]));
 
     let pixel_path = format!("{}_mser_pixels.png", stem);
-    pixel_img.save(&pixel_path).unwrap();
+    pixel_img.save(&pixel_path)?;
     eprintln!("  Saved pixel regions: {}", pixel_path);
+
+    Ok(())
 }

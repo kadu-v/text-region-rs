@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 image = "0.25"
 rayon = "1.10"
+thiserror = "2"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
