@@ -1,5 +1,5 @@
 use crate::block_memory::BlockMemory;
-use crate::types::{MserRegion, Point, Rect};
+use crate::types::{MserRegion, Point, rect_from_points};
 use crate::v1::data::{LinkedPoint, MserRegionV1, RegionFlag};
 
 /// Extract pixel coordinates for all valid MSER regions.
@@ -88,7 +88,7 @@ pub fn extract_pixels(
         msers.push(MserRegion {
             gray_level: region.gray_level ^ gray_mask,
             points,
-            bounding_rect: Rect::from_points(
+            bounding_rect: rect_from_points(
                 Point { x: min_x, y: min_y },
                 Point { x: max_x, y: max_y },
             ),

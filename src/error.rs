@@ -1,4 +1,5 @@
 use crate::params::MserParams;
+use image::GrayImage;
 
 pub type Result<T> = std::result::Result<T, MserError>;
 
@@ -36,18 +37,18 @@ pub enum MserError {
     Image(#[from] image::ImageError),
 }
 
-pub(crate) fn validate_image_input(
+pub(crate) fn validate_gray_image_input(image: &GrayImage, params: &MserParams) -> Result<()> {
+    validate_image_dimensions(image.width(), image.height())?;
+    validate_params(params)
+}
+
+pub(crate) fn validate_raw_image_input(
     image: &[u8],
     width: u32,
     height: u32,
     params: &MserParams,
 ) -> Result<()> {
-    if width == 0 || height == 0 {
-        return Err(MserError::EmptyImageDimensions { width, height });
-    }
-
-    let expected = checked_image_len(width, height)?;
-    checked_padded_image_len(width, height)?;
+    let expected = validate_image_dimensions(width, height)?;
     if image.len() != expected {
         return Err(MserError::ImageBufferLengthMismatch {
             expected,
@@ -58,6 +59,16 @@ pub(crate) fn validate_image_input(
     }
 
     validate_params(params)
+}
+
+fn validate_image_dimensions(width: u32, height: u32) -> Result<usize> {
+    if width == 0 || height == 0 {
+        return Err(MserError::EmptyImageDimensions { width, height });
+    }
+
+    let expected = checked_image_len(width, height)?;
+    checked_padded_image_len(width, height)?;
+    Ok(expected)
 }
 
 pub(crate) fn checked_image_len(width: u32, height: u32) -> Result<usize> {
@@ -121,4 +132,38 @@ fn validate_params(params: &MserParams) -> Result<()> {
 
 fn invalid_param<T>(field: &'static str, message: &'static str) -> Result<T> {
     Err(MserError::InvalidMserParams { field, message })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_validation_rejects_image_buffer_length_mismatch() {
+        let err = validate_raw_image_input(&[0; 3], 2, 2, &MserParams::default()).unwrap_err();
+
+        assert!(matches!(
+            err,
+            MserError::ImageBufferLengthMismatch {
+                expected: 4,
+                actual: 3,
+                width: 2,
+                height: 2
+            }
+        ));
+    }
+
+    #[test]
+    fn validation_rejects_dimensions_too_large_for_internal_buffers() {
+        let err =
+            validate_raw_image_input(&[], 70_000, 70_000, &MserParams::default()).unwrap_err();
+
+        assert!(matches!(
+            err,
+            MserError::ImageDimensionsTooLarge {
+                width: 70_000,
+                height: 70_000
+            }
+        ));
+    }
 }

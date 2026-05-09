@@ -1,5 +1,5 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use image::ImageReader;
+use image::{GrayImage, ImageReader};
 use std::time::Duration;
 use text_region_rs::params::{MserParams, ParallelConfig};
 use text_region_rs::{
@@ -7,12 +7,12 @@ use text_region_rs::{
     extract_msers_v2_partitioned,
 };
 
-fn load_grayscale(path: &str) -> (Vec<u8>, u32, u32) {
+fn load_grayscale(path: &str) -> (GrayImage, u32, u32) {
     let img = ImageReader::open(path).unwrap().decode().unwrap();
     let gray = img.to_luma8();
     let w = gray.width();
     let h = gray.height();
-    (gray.into_raw(), w, h)
+    (gray, w, h)
 }
 
 fn default_detect_params(w: u32, h: u32) -> MserParams {
@@ -43,41 +43,41 @@ fn bench_all(c: &mut Criterion) {
 
     // Paper image
     g.bench_function("paper/v1_single", |b| {
-        b.iter(|| extract_msers(&img_p, wp, hp, &pp).unwrap())
+        b.iter(|| extract_msers(&img_p, &pp).unwrap())
     });
     g.bench_function("paper/v1_par_minmax", |b| {
-        b.iter(|| extract_msers_parallel(&img_p, wp, hp, &pp, &cfg).unwrap())
+        b.iter(|| extract_msers_parallel(&img_p, &pp, &cfg).unwrap())
     });
     g.bench_function("paper/v2_single", |b| {
-        b.iter(|| extract_msers_v2(&img_p, wp, hp, &pp).unwrap())
+        b.iter(|| extract_msers_v2(&img_p, &pp).unwrap())
     });
     g.bench_function("paper/v2_par_minmax", |b| {
-        b.iter(|| extract_msers_v2_parallel(&img_p, wp, hp, &pp, &cfg).unwrap())
+        b.iter(|| extract_msers_v2_parallel(&img_p, &pp, &cfg).unwrap())
     });
     for n in [2, 4, 8] {
         let c2 = ParallelConfig { num_patches: n };
         g.bench_with_input(BenchmarkId::new("paper/v2_partitioned", n), &n, |b, _| {
-            b.iter(|| extract_msers_v2_partitioned(&img_p, wp, hp, &pp, &c2).unwrap())
+            b.iter(|| extract_msers_v2_partitioned(&img_p, &pp, &c2).unwrap())
         });
     }
 
     // Label image
     g.bench_function("label/v1_single", |b| {
-        b.iter(|| extract_msers(&img_l, wl, hl, &pl).unwrap())
+        b.iter(|| extract_msers(&img_l, &pl).unwrap())
     });
     g.bench_function("label/v1_par_minmax", |b| {
-        b.iter(|| extract_msers_parallel(&img_l, wl, hl, &pl, &cfg).unwrap())
+        b.iter(|| extract_msers_parallel(&img_l, &pl, &cfg).unwrap())
     });
     g.bench_function("label/v2_single", |b| {
-        b.iter(|| extract_msers_v2(&img_l, wl, hl, &pl).unwrap())
+        b.iter(|| extract_msers_v2(&img_l, &pl).unwrap())
     });
     g.bench_function("label/v2_par_minmax", |b| {
-        b.iter(|| extract_msers_v2_parallel(&img_l, wl, hl, &pl, &cfg).unwrap())
+        b.iter(|| extract_msers_v2_parallel(&img_l, &pl, &cfg).unwrap())
     });
     for n in [2, 4, 8] {
         let c2 = ParallelConfig { num_patches: n };
         g.bench_with_input(BenchmarkId::new("label/v2_partitioned", n), &n, |b, _| {
-            b.iter(|| extract_msers_v2_partitioned(&img_l, wl, hl, &pl, &c2).unwrap())
+            b.iter(|| extract_msers_v2_partitioned(&img_l, &pl, &c2).unwrap())
         });
     }
 

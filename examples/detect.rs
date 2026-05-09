@@ -7,10 +7,10 @@ use text_region_rs::{extract_msers, extract_msers_v2};
 
 fn draw_regions(base: &mut RgbImage, regions: &[MserRegion], color: Rgb<u8>) {
     for r in regions {
-        let left = r.bounding_rect.left;
-        let top = r.bounding_rect.top;
-        let right = left + r.bounding_rect.width - 1;
-        let bottom = top + r.bounding_rect.height - 1;
+        let left = r.bounding_rect.x as i32;
+        let top = r.bounding_rect.y as i32;
+        let right = left + r.bounding_rect.width as i32 - 1;
+        let bottom = top + r.bounding_rect.height as i32 - 1;
 
         for x in left..=right {
             if x >= 0 && x < base.width() as i32 {
@@ -62,7 +62,6 @@ fn main() -> Result<()> {
     let gray = img.to_luma8();
     let w = gray.width();
     let h = gray.height();
-    let data = gray.into_raw();
 
     let total_pixels = (w * h) as f32;
     let min_point = (total_pixels * 0.0001) as i32;
@@ -89,9 +88,9 @@ fn main() -> Result<()> {
     );
 
     let result = if use_v2 {
-        extract_msers_v2(&data, w, h, &params)?
+        extract_msers_v2(&gray, &params)?
     } else {
-        extract_msers(&data, w, h, &params)?
+        extract_msers(&gray, &params)?
     };
 
     eprintln!(
@@ -116,7 +115,7 @@ fn main() -> Result<()> {
     let mut pixel_img = RgbImage::new(w, h);
     for y in 0..h {
         for x in 0..w {
-            let v = data[(y * w + x) as usize];
+            let v = gray.as_raw()[(y * w + x) as usize];
             pixel_img.put_pixel(x, y, Rgb([v, v, v]));
         }
     }

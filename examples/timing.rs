@@ -87,7 +87,6 @@ fn main() -> Result<()> {
     let gray = img.to_luma8();
     let w = gray.width();
     let h = gray.height();
-    let pixels: Vec<u8> = gray.into_raw();
     let total = (w * h) as f32;
     let params = MserParams {
         delta: 5,
@@ -108,7 +107,7 @@ fn main() -> Result<()> {
 
         if args.variant == Variant::All || args.variant == Variant::Single {
             let t = Instant::now();
-            let result = extract_msers_v2(&pixels, w, h, &params)?;
+            let result = extract_msers_v2(&gray, &params)?;
             println!(
                 "v2_single: {:?}  regions: {}/{}",
                 t.elapsed(),
@@ -121,7 +120,7 @@ fn main() -> Result<()> {
             for num_patches in [2, 4] {
                 let cfg = ParallelConfig { num_patches };
                 let t = Instant::now();
-                let result = extract_msers_v2_partitioned(&pixels, w, h, &params, &cfg)?;
+                let result = extract_msers_v2_partitioned(&gray, &params, &cfg)?;
                 println!(
                     "v2_part/{}: {:?}  regions: {}/{}",
                     num_patches,
@@ -135,7 +134,7 @@ fn main() -> Result<()> {
                 num_patches: args.patches,
             };
             let t = Instant::now();
-            let result = extract_msers_v2_partitioned(&pixels, w, h, &params, &cfg)?;
+            let result = extract_msers_v2_partitioned(&gray, &params, &cfg)?;
             println!(
                 "v2_part/{}: {:?}  regions: {}/{}",
                 args.patches,

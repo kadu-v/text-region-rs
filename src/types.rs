@@ -4,22 +4,19 @@ pub struct Point {
     pub y: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Rect {
-    pub left: i32,
-    pub top: i32,
-    pub width: i32,
-    pub height: i32,
-}
+pub type Rect = image::math::Rect;
 
-impl Rect {
-    pub fn from_points(min: Point, max: Point) -> Self {
-        Self {
-            left: min.x,
-            top: min.y,
-            width: max.x - min.x + 1,
-            height: max.y - min.y + 1,
-        }
+pub(crate) fn rect_from_points(min: Point, max: Point) -> Rect {
+    debug_assert!(min.x >= 0);
+    debug_assert!(min.y >= 0);
+    debug_assert!(max.x >= min.x);
+    debug_assert!(max.y >= min.y);
+
+    Rect {
+        x: min.x as u32,
+        y: min.y as u32,
+        width: (max.x - min.x + 1) as u32,
+        height: (max.y - min.y + 1) as u32,
     }
 }
 
@@ -50,22 +47,22 @@ mod tests {
     #[test]
     fn test_rect_creation() {
         let r = Rect {
-            left: 1,
-            top: 2,
+            x: 1,
+            y: 2,
             width: 10,
             height: 20,
         };
-        assert_eq!(r.left, 1);
-        assert_eq!(r.top, 2);
+        assert_eq!(r.x, 1);
+        assert_eq!(r.y, 2);
         assert_eq!(r.width, 10);
         assert_eq!(r.height, 20);
     }
 
     #[test]
     fn test_rect_from_points() {
-        let r = Rect::from_points(Point { x: 3, y: 5 }, Point { x: 7, y: 9 });
-        assert_eq!(r.left, 3);
-        assert_eq!(r.top, 5);
+        let r = rect_from_points(Point { x: 3, y: 5 }, Point { x: 7, y: 9 });
+        assert_eq!(r.x, 3);
+        assert_eq!(r.y, 5);
         assert_eq!(r.width, 5);
         assert_eq!(r.height, 5);
     }

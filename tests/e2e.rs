@@ -1,10 +1,10 @@
-use image::ImageReader;
+use image::{GrayImage, ImageReader};
 use std::collections::HashSet;
 use text_region_rs::params::{ConnectedType, MserParams};
 use text_region_rs::types::MserRegion;
 use text_region_rs::{extract_msers, extract_msers_v2};
 
-fn load_grayscale(path: &str) -> (Vec<u8>, u32, u32) {
+fn load_grayscale(path: &str) -> (GrayImage, u32, u32) {
     let img = ImageReader::open(path)
         .unwrap_or_else(|e| panic!("Failed to open {}: {}", path, e))
         .decode()
@@ -12,7 +12,7 @@ fn load_grayscale(path: &str) -> (Vec<u8>, u32, u32) {
         .into_luma8();
     let w = img.width();
     let h = img.height();
-    (img.into_raw(), w, h)
+    (img, w, h)
 }
 
 const IMG_PAPER: &str = "resource/IMG_8237.jpeg";
@@ -29,27 +29,51 @@ fn assert_invariants(regions: &[MserRegion], w: u32, h: u32, label: &str) {
             assert!(
                 pt.x >= 0 && pt.x < w as i32 && pt.y >= 0 && pt.y < h as i32,
                 "{} region {}: point ({},{}) out of image {}x{}",
-                label, i, pt.x, pt.y, w, h,
+                label,
+                i,
+                pt.x,
+                pt.y,
+                w,
+                h,
             );
         }
 
         // bounding rect が正
-        assert!(r.bounding_rect.width > 0, "{} region {} has zero width", label, i);
-        assert!(r.bounding_rect.height > 0, "{} region {} has zero height", label, i);
-        assert!(r.bounding_rect.left >= 0, "{} region {} has negative left", label, i);
-        assert!(r.bounding_rect.top >= 0, "{} region {} has negative top", label, i);
+        let rect_x = r.bounding_rect.x as i32;
+        let rect_y = r.bounding_rect.y as i32;
+        let rect_w = r.bounding_rect.width as i32;
+        let rect_h = r.bounding_rect.height as i32;
+        assert!(
+            r.bounding_rect.width > 0,
+            "{} region {} has zero width",
+            label,
+            i
+        );
+        assert!(
+            r.bounding_rect.height > 0,
+            "{} region {} has zero height",
+            label,
+            i
+        );
+        assert!(rect_x >= 0, "{} region {} has negative x", label, i);
+        assert!(rect_y >= 0, "{} region {} has negative y", label, i);
 
         // 全ピクセルが bounding rect 内
         for pt in &r.points {
             assert!(
-                pt.x >= r.bounding_rect.left
-                    && pt.x < r.bounding_rect.left + r.bounding_rect.width
-                    && pt.y >= r.bounding_rect.top
-                    && pt.y < r.bounding_rect.top + r.bounding_rect.height,
+                pt.x >= rect_x
+                    && pt.x < rect_x + rect_w
+                    && pt.y >= rect_y
+                    && pt.y < rect_y + rect_h,
                 "{} region {}: point ({},{}) outside bbox ({},{},{},{})",
-                label, i, pt.x, pt.y,
-                r.bounding_rect.left, r.bounding_rect.top,
-                r.bounding_rect.width, r.bounding_rect.height,
+                label,
+                i,
+                pt.x,
+                pt.y,
+                r.bounding_rect.x,
+                r.bounding_rect.y,
+                r.bounding_rect.width,
+                r.bounding_rect.height,
             );
         }
 
@@ -59,7 +83,10 @@ fn assert_invariants(regions: &[MserRegion], w: u32, h: u32, label: &str) {
             assert!(
                 seen.insert((pt.x, pt.y)),
                 "{} region {}: duplicate pixel ({},{})",
-                label, i, pt.x, pt.y,
+                label,
+                i,
+                pt.x,
+                pt.y,
             );
         }
     }
@@ -70,12 +97,18 @@ fn assert_size_filter(regions: &[MserRegion], min_point: usize, max_point: usize
         assert!(
             r.points.len() >= min_point,
             "{} region {}: size {} < min_point {}",
-            label, i, r.points.len(), min_point,
+            label,
+            i,
+            r.points.len(),
+            min_point,
         );
         assert!(
             r.points.len() <= max_point,
             "{} region {}: size {} > max_point {}",
-            label, i, r.points.len(), max_point,
+            label,
+            i,
+            r.points.len(),
+            max_point,
         );
     }
 }
@@ -88,11 +121,11 @@ fn assert_size_filter(regions: &[MserRegion], min_point: usize, max_point: usize
 fn e2e_load_images() {
     let (d1, w1, h1) = load_grayscale(IMG_PAPER);
     assert!(w1 > 0 && h1 > 0);
-    assert_eq!(d1.len(), (w1 * h1) as usize);
+    assert_eq!(d1.as_raw().len(), (w1 * h1) as usize);
 
     let (d2, w2, h2) = load_grayscale(IMG_LABEL);
     assert!(w2 > 0 && h2 > 0);
-    assert_eq!(d2.len(), (w2 * h2) as usize);
+    assert_eq!(d2.as_raw().len(), (w2 * h2) as usize);
 }
 
 // ===========================================================================
@@ -101,28 +134,40 @@ fn e2e_load_images() {
 
 #[test]
 fn e2e_paper_v1_detects_msers() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params).unwrap();
+    let result = extract_msers(&img, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V1: paper image should have MSERs, got 0");
 
-    assert!(!result.from_min.is_empty(), "V1: paper should have from_min (dark text)");
-    assert!(!result.from_max.is_empty(), "V1: paper should have from_max");
+    assert!(
+        !result.from_min.is_empty(),
+        "V1: paper should have from_min (dark text)"
+    );
+    assert!(
+        !result.from_max.is_empty(),
+        "V1: paper should have from_max"
+    );
 }
 
 #[test]
 fn e2e_paper_v2_detects_msers() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params).unwrap();
+    let result = extract_msers_v2(&img, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V2: paper image should have MSERs, got 0");
 
-    assert!(!result.from_min.is_empty(), "V2: paper should have from_min (dark text)");
-    assert!(!result.from_max.is_empty(), "V2: paper should have from_max");
+    assert!(
+        !result.from_min.is_empty(),
+        "V2: paper should have from_min (dark text)"
+    );
+    assert!(
+        !result.from_max.is_empty(),
+        "V2: paper should have from_max"
+    );
 }
 
 // ===========================================================================
@@ -131,9 +176,9 @@ fn e2e_paper_v2_detects_msers() {
 
 #[test]
 fn e2e_label_v1_detects_msers() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params).unwrap();
+    let result = extract_msers(&img, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V1: label image should have MSERs, got 0");
@@ -141,9 +186,9 @@ fn e2e_label_v1_detects_msers() {
 
 #[test]
 fn e2e_label_v2_detects_msers() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params).unwrap();
+    let result = extract_msers_v2(&img, &params).unwrap();
 
     let total = result.from_min.len() + result.from_max.len();
     assert!(total > 0, "V2: label image should have MSERs, got 0");
@@ -157,7 +202,7 @@ fn e2e_label_v2_detects_msers() {
 fn e2e_paper_v1_invariants() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params).unwrap();
+    let result = extract_msers(&img, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V1 from_min");
     assert_invariants(&result.from_max, w, h, "V1 from_max");
@@ -167,7 +212,7 @@ fn e2e_paper_v1_invariants() {
 fn e2e_paper_v2_invariants() {
     let (img, w, h) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params).unwrap();
+    let result = extract_msers_v2(&img, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V2 from_min");
     assert_invariants(&result.from_max, w, h, "V2 from_max");
@@ -181,7 +226,7 @@ fn e2e_paper_v2_invariants() {
 fn e2e_label_v1_invariants() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers(&img, w, h, &params).unwrap();
+    let result = extract_msers(&img, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V1 from_min");
     assert_invariants(&result.from_max, w, h, "V1 from_max");
@@ -191,7 +236,7 @@ fn e2e_label_v1_invariants() {
 fn e2e_label_v2_invariants() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
-    let result = extract_msers_v2(&img, w, h, &params).unwrap();
+    let result = extract_msers_v2(&img, &params).unwrap();
 
     assert_invariants(&result.from_min, w, h, "V2 from_min");
     assert_invariants(&result.from_max, w, h, "V2 from_max");
@@ -203,25 +248,39 @@ fn e2e_label_v2_invariants() {
 
 #[test]
 fn e2e_paper_from_min_only() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
-    let params = MserParams { from_min: true, from_max: false, ..MserParams::default() };
+    let (img, _, _) = load_grayscale(IMG_PAPER);
+    let params = MserParams {
+        from_min: true,
+        from_max: false,
+        ..MserParams::default()
+    };
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert!(v1.from_max.is_empty());
     assert!(v2.from_max.is_empty());
-    assert!(!v1.from_min.is_empty(), "V1: paper should have from_min MSERs");
-    assert!(!v2.from_min.is_empty(), "V2: paper should have from_min MSERs");
+    assert!(
+        !v1.from_min.is_empty(),
+        "V1: paper should have from_min MSERs"
+    );
+    assert!(
+        !v2.from_min.is_empty(),
+        "V2: paper should have from_min MSERs"
+    );
 }
 
 #[test]
 fn e2e_paper_from_max_only() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
-    let params = MserParams { from_min: false, from_max: true, ..MserParams::default() };
+    let (img, _, _) = load_grayscale(IMG_PAPER);
+    let params = MserParams {
+        from_min: false,
+        from_max: true,
+        ..MserParams::default()
+    };
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert!(v1.from_min.is_empty());
     assert!(v2.from_min.is_empty());
@@ -229,11 +288,15 @@ fn e2e_paper_from_max_only() {
 
 #[test]
 fn e2e_label_from_min_only() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
-    let params = MserParams { from_min: true, from_max: false, ..MserParams::default() };
+    let (img, _, _) = load_grayscale(IMG_LABEL);
+    let params = MserParams {
+        from_min: true,
+        from_max: false,
+        ..MserParams::default()
+    };
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert!(v1.from_max.is_empty());
     assert!(v2.from_max.is_empty());
@@ -241,11 +304,15 @@ fn e2e_label_from_min_only() {
 
 #[test]
 fn e2e_label_from_max_only() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
-    let params = MserParams { from_min: false, from_max: true, ..MserParams::default() };
+    let (img, _, _) = load_grayscale(IMG_LABEL);
+    let params = MserParams {
+        from_min: false,
+        from_max: true,
+        ..MserParams::default()
+    };
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert!(v1.from_min.is_empty());
     assert!(v2.from_min.is_empty());
@@ -257,11 +324,14 @@ fn e2e_label_from_max_only() {
 
 #[test]
 fn e2e_paper_min_point_monotonic() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
 
     let count = |min_pt: i32| {
-        let params = MserParams { min_point: min_pt, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params).unwrap();
+        let params = MserParams {
+            min_point: min_pt,
+            ..MserParams::default()
+        };
+        let r = extract_msers(&img, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -269,18 +339,31 @@ fn e2e_paper_min_point_monotonic() {
     let c50 = count(50);
     let c200 = count(200);
 
-    assert!(c50 <= c10, "min_point=50 should give <= MSERs than 10: {} > {}", c50, c10);
-    assert!(c200 <= c50, "min_point=200 should give <= MSERs than 50: {} > {}", c200, c50);
+    assert!(
+        c50 <= c10,
+        "min_point=50 should give <= MSERs than 10: {} > {}",
+        c50,
+        c10
+    );
+    assert!(
+        c200 <= c50,
+        "min_point=200 should give <= MSERs than 50: {} > {}",
+        c200,
+        c50
+    );
 }
 
 #[test]
 fn e2e_label_min_point_respects_filter() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
     let min_pt = 100;
-    let params = MserParams { min_point: min_pt, ..MserParams::default() };
+    let params = MserParams {
+        min_point: min_pt,
+        ..MserParams::default()
+    };
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert_size_filter(&v1.from_min, min_pt as usize, usize::MAX, "V1 from_min");
     assert_size_filter(&v1.from_max, min_pt as usize, usize::MAX, "V1 from_max");
@@ -297,10 +380,13 @@ fn e2e_label_max_point_respects_filter() {
     let (img, w, h) = load_grayscale(IMG_LABEL);
     let ratio = 0.01f32;
     let max_point = (ratio * (w * h) as f32) as usize;
-    let params = MserParams { max_point_ratio: ratio, ..MserParams::default() };
+    let params = MserParams {
+        max_point_ratio: ratio,
+        ..MserParams::default()
+    };
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert_size_filter(&v1.from_min, 0, max_point, "V1 from_min");
     assert_size_filter(&v1.from_max, 0, max_point, "V1 from_max");
@@ -310,11 +396,14 @@ fn e2e_label_max_point_respects_filter() {
 
 #[test]
 fn e2e_paper_max_point_monotonic() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
 
     let count = |ratio: f32| {
-        let params = MserParams { max_point_ratio: ratio, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params).unwrap();
+        let params = MserParams {
+            max_point_ratio: ratio,
+            ..MserParams::default()
+        };
+        let r = extract_msers(&img, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -322,8 +411,18 @@ fn e2e_paper_max_point_monotonic() {
     let c10 = count(0.10);
     let c50 = count(0.50);
 
-    assert!(c01 <= c10, "ratio=0.01 should give <= MSERs than 0.10: {} > {}", c01, c10);
-    assert!(c10 <= c50, "ratio=0.10 should give <= MSERs than 0.50: {} > {}", c10, c50);
+    assert!(
+        c01 <= c10,
+        "ratio=0.01 should give <= MSERs than 0.10: {} > {}",
+        c01,
+        c10
+    );
+    assert!(
+        c10 <= c50,
+        "ratio=0.10 should give <= MSERs than 0.50: {} > {}",
+        c10,
+        c50
+    );
 }
 
 // ===========================================================================
@@ -332,11 +431,14 @@ fn e2e_paper_max_point_monotonic() {
 
 #[test]
 fn e2e_paper_delta_monotonic() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
 
     let count = |delta: i32| {
-        let params = MserParams { delta, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params).unwrap();
+        let params = MserParams {
+            delta,
+            ..MserParams::default()
+        };
+        let r = extract_msers(&img, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -344,17 +446,30 @@ fn e2e_paper_delta_monotonic() {
     let d5 = count(5);
     let d10 = count(10);
 
-    assert!(d5 <= d1, "delta=5 should give <= MSERs than 1: {} > {}", d5, d1);
-    assert!(d10 <= d5, "delta=10 should give <= MSERs than 5: {} > {}", d10, d5);
+    assert!(
+        d5 <= d1,
+        "delta=5 should give <= MSERs than 1: {} > {}",
+        d5,
+        d1
+    );
+    assert!(
+        d10 <= d5,
+        "delta=10 should give <= MSERs than 5: {} > {}",
+        d10,
+        d5
+    );
 }
 
 #[test]
 fn e2e_label_delta_monotonic() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
 
     let count = |delta: i32| {
-        let params = MserParams { delta, ..MserParams::default() };
-        let r = extract_msers_v2(&img, w, h, &params).unwrap();
+        let params = MserParams {
+            delta,
+            ..MserParams::default()
+        };
+        let r = extract_msers_v2(&img, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -362,8 +477,18 @@ fn e2e_label_delta_monotonic() {
     let d5 = count(5);
     let d10 = count(10);
 
-    assert!(d5 <= d1, "V2 delta=5 should give <= MSERs than 1: {} > {}", d5, d1);
-    assert!(d10 <= d5, "V2 delta=10 should give <= MSERs than 5: {} > {}", d10, d5);
+    assert!(
+        d5 <= d1,
+        "V2 delta=5 should give <= MSERs than 1: {} > {}",
+        d5,
+        d1
+    );
+    assert!(
+        d10 <= d5,
+        "V2 delta=10 should give <= MSERs than 5: {} > {}",
+        d10,
+        d5
+    );
 }
 
 // ===========================================================================
@@ -372,11 +497,14 @@ fn e2e_label_delta_monotonic() {
 
 #[test]
 fn e2e_paper_stable_variation_monotonic() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
 
     let count = |sv: f32| {
-        let params = MserParams { stable_variation: sv, ..MserParams::default() };
-        let r = extract_msers(&img, w, h, &params).unwrap();
+        let params = MserParams {
+            stable_variation: sv,
+            ..MserParams::default()
+        };
+        let r = extract_msers(&img, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -384,17 +512,30 @@ fn e2e_paper_stable_variation_monotonic() {
     let s05 = count(0.5);
     let s20 = count(2.0);
 
-    assert!(s01 <= s05, "sv=0.1 should give <= MSERs than 0.5: {} > {}", s01, s05);
-    assert!(s05 <= s20, "sv=0.5 should give <= MSERs than 2.0: {} > {}", s05, s20);
+    assert!(
+        s01 <= s05,
+        "sv=0.1 should give <= MSERs than 0.5: {} > {}",
+        s01,
+        s05
+    );
+    assert!(
+        s05 <= s20,
+        "sv=0.5 should give <= MSERs than 2.0: {} > {}",
+        s05,
+        s20
+    );
 }
 
 #[test]
 fn e2e_label_stable_variation_monotonic() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
 
     let count = |sv: f32| {
-        let params = MserParams { stable_variation: sv, ..MserParams::default() };
-        let r = extract_msers_v2(&img, w, h, &params).unwrap();
+        let params = MserParams {
+            stable_variation: sv,
+            ..MserParams::default()
+        };
+        let r = extract_msers_v2(&img, &params).unwrap();
         r.from_min.len() + r.from_max.len()
     };
 
@@ -402,8 +543,18 @@ fn e2e_label_stable_variation_monotonic() {
     let s05 = count(0.5);
     let s20 = count(2.0);
 
-    assert!(s01 <= s05, "V2 sv=0.1 should give <= MSERs than 0.5: {} > {}", s01, s05);
-    assert!(s05 <= s20, "V2 sv=0.5 should give <= MSERs than 2.0: {} > {}", s05, s20);
+    assert!(
+        s01 <= s05,
+        "V2 sv=0.1 should give <= MSERs than 0.5: {} > {}",
+        s01,
+        s05
+    );
+    assert!(
+        s05 <= s20,
+        "V2 sv=0.5 should give <= MSERs than 2.0: {} > {}",
+        s05,
+        s20
+    );
 }
 
 // ===========================================================================
@@ -412,34 +563,56 @@ fn e2e_label_stable_variation_monotonic() {
 
 #[test]
 fn e2e_paper_nms_reduces_count() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
 
-    let params_off = MserParams { nms_similarity: -1.0, ..MserParams::default() };
-    let params_on = MserParams { nms_similarity: 0.0, ..MserParams::default() };
+    let params_off = MserParams {
+        nms_similarity: -1.0,
+        ..MserParams::default()
+    };
+    let params_on = MserParams {
+        nms_similarity: 0.0,
+        ..MserParams::default()
+    };
 
-    let off = extract_msers(&img, w, h, &params_off).unwrap();
-    let on = extract_msers(&img, w, h, &params_on).unwrap();
+    let off = extract_msers(&img, &params_off).unwrap();
+    let on = extract_msers(&img, &params_on).unwrap();
 
     let off_total = off.from_min.len() + off.from_max.len();
     let on_total = on.from_min.len() + on.from_max.len();
 
-    assert!(on_total <= off_total, "NMS should reduce count: off={}, on={}", off_total, on_total);
+    assert!(
+        on_total <= off_total,
+        "NMS should reduce count: off={}, on={}",
+        off_total,
+        on_total
+    );
 }
 
 #[test]
 fn e2e_label_nms_reduces_count() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
 
-    let params_off = MserParams { nms_similarity: -1.0, ..MserParams::default() };
-    let params_on = MserParams { nms_similarity: 0.0, ..MserParams::default() };
+    let params_off = MserParams {
+        nms_similarity: -1.0,
+        ..MserParams::default()
+    };
+    let params_on = MserParams {
+        nms_similarity: 0.0,
+        ..MserParams::default()
+    };
 
-    let off = extract_msers_v2(&img, w, h, &params_off).unwrap();
-    let on = extract_msers_v2(&img, w, h, &params_on).unwrap();
+    let off = extract_msers_v2(&img, &params_off).unwrap();
+    let on = extract_msers_v2(&img, &params_on).unwrap();
 
     let off_total = off.from_min.len() + off.from_max.len();
     let on_total = on.from_min.len() + on.from_max.len();
 
-    assert!(on_total <= off_total, "V2 NMS should reduce count: off={}, on={}", off_total, on_total);
+    assert!(
+        on_total <= off_total,
+        "V2 NMS should reduce count: off={}, on={}",
+        off_total,
+        on_total
+    );
 }
 
 // ===========================================================================
@@ -448,13 +621,19 @@ fn e2e_label_nms_reduces_count() {
 
 #[test]
 fn e2e_paper_duplicated_variation() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
 
-    let params_off = MserParams { duplicated_variation: 0.0, ..MserParams::default() };
-    let params_on = MserParams { duplicated_variation: 0.2, ..MserParams::default() };
+    let params_off = MserParams {
+        duplicated_variation: 0.0,
+        ..MserParams::default()
+    };
+    let params_on = MserParams {
+        duplicated_variation: 0.2,
+        ..MserParams::default()
+    };
 
-    let off = extract_msers(&img, w, h, &params_off).unwrap();
-    let on = extract_msers(&img, w, h, &params_on).unwrap();
+    let off = extract_msers(&img, &params_off).unwrap();
+    let on = extract_msers(&img, &params_on).unwrap();
 
     let off_total = off.from_min.len() + off.from_max.len();
     let on_total = on.from_min.len() + on.from_max.len();
@@ -462,7 +641,8 @@ fn e2e_paper_duplicated_variation() {
     assert!(
         on_total <= off_total,
         "Dup removal should reduce count: off={}, on={}",
-        off_total, on_total,
+        off_total,
+        on_total,
     );
 }
 
@@ -478,7 +658,7 @@ fn e2e_label_4conn_v1_invariants() {
         ..MserParams::default()
     };
 
-    let result = extract_msers(&img, w, h, &params).unwrap();
+    let result = extract_msers(&img, &params).unwrap();
     assert_invariants(&result.from_min, w, h, "V1 4conn from_min");
     assert_invariants(&result.from_max, w, h, "V1 4conn from_max");
 }
@@ -491,7 +671,7 @@ fn e2e_label_8conn_v1_invariants() {
         ..MserParams::default()
     };
 
-    let result = extract_msers(&img, w, h, &params).unwrap();
+    let result = extract_msers(&img, &params).unwrap();
     assert_invariants(&result.from_min, w, h, "V1 8conn from_min");
     assert_invariants(&result.from_max, w, h, "V1 8conn from_max");
 }
@@ -504,7 +684,7 @@ fn e2e_label_8conn_v2_invariants() {
         ..MserParams::default()
     };
 
-    let result = extract_msers_v2(&img, w, h, &params).unwrap();
+    let result = extract_msers_v2(&img, &params).unwrap();
     assert_invariants(&result.from_min, w, h, "V2 8conn from_min");
     assert_invariants(&result.from_max, w, h, "V2 8conn from_max");
 }
@@ -515,11 +695,11 @@ fn e2e_label_8conn_v2_invariants() {
 
 #[test]
 fn e2e_paper_deterministic() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
 
-    let r1 = extract_msers(&img, w, h, &params).unwrap();
-    let r2 = extract_msers(&img, w, h, &params).unwrap();
+    let r1 = extract_msers(&img, &params).unwrap();
+    let r2 = extract_msers(&img, &params).unwrap();
 
     assert_eq!(r1.from_min.len(), r2.from_min.len());
     assert_eq!(r1.from_max.len(), r2.from_max.len());
@@ -532,11 +712,11 @@ fn e2e_paper_deterministic() {
 
 #[test]
 fn e2e_label_deterministic_v2() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
 
-    let r1 = extract_msers_v2(&img, w, h, &params).unwrap();
-    let r2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let r1 = extract_msers_v2(&img, &params).unwrap();
+    let r2 = extract_msers_v2(&img, &params).unwrap();
 
     assert_eq!(r1.from_min.len(), r2.from_min.len());
     assert_eq!(r1.from_max.len(), r2.from_max.len());
@@ -551,12 +731,7 @@ fn e2e_label_deterministic_v2() {
 // 15. V1/V2 検出数の近さ（完全一致ではなく1%以内）
 // ===========================================================================
 
-fn assert_v1_v2_close(
-    v1_count: usize,
-    v2_count: usize,
-    tolerance_pct: f64,
-    label: &str,
-) {
+fn assert_v1_v2_close(v1_count: usize, v2_count: usize, tolerance_pct: f64, label: &str) {
     if v1_count == 0 && v2_count == 0 {
         return;
     }
@@ -566,17 +741,21 @@ fn assert_v1_v2_close(
     assert!(
         pct <= tolerance_pct,
         "{}: V1={} V2={} differ by {:.1}% (tolerance {:.1}%)",
-        label, v1_count, v2_count, pct, tolerance_pct,
+        label,
+        v1_count,
+        v2_count,
+        pct,
+        tolerance_pct,
     );
 }
 
 #[test]
 fn e2e_paper_v1_v2_count_close() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
     let params = MserParams::default();
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert_v1_v2_close(v1.from_min.len(), v2.from_min.len(), 1.0, "paper from_min");
     assert_v1_v2_close(v1.from_max.len(), v2.from_max.len(), 1.0, "paper from_max");
@@ -584,11 +763,11 @@ fn e2e_paper_v1_v2_count_close() {
 
 #[test]
 fn e2e_label_v1_v2_count_close() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
     let params = MserParams::default();
 
-    let v1 = extract_msers(&img, w, h, &params).unwrap();
-    let v2 = extract_msers_v2(&img, w, h, &params).unwrap();
+    let v1 = extract_msers(&img, &params).unwrap();
+    let v2 = extract_msers_v2(&img, &params).unwrap();
 
     assert_v1_v2_close(v1.from_min.len(), v2.from_min.len(), 1.0, "label from_min");
     assert_v1_v2_close(v1.from_max.len(), v2.from_max.len(), 1.0, "label from_max");
@@ -600,12 +779,23 @@ fn e2e_label_v1_v2_count_close() {
 
 #[test]
 fn e2e_paper_multi_params_v1_v2_close() {
-    let (img, w, h) = load_grayscale(IMG_PAPER);
+    let (img, _, _) = load_grayscale(IMG_PAPER);
 
     let configs = [
-        MserParams { delta: 5, ..MserParams::default() },
-        MserParams { min_point: 50, max_point_ratio: 0.1, ..MserParams::default() },
-        MserParams { stable_variation: 1.0, nms_similarity: -1.0, ..MserParams::default() },
+        MserParams {
+            delta: 5,
+            ..MserParams::default()
+        },
+        MserParams {
+            min_point: 50,
+            max_point_ratio: 0.1,
+            ..MserParams::default()
+        },
+        MserParams {
+            stable_variation: 1.0,
+            nms_similarity: -1.0,
+            ..MserParams::default()
+        },
         MserParams {
             connected_type: ConnectedType::EightConnected,
             ..MserParams::default()
@@ -613,8 +803,8 @@ fn e2e_paper_multi_params_v1_v2_close() {
     ];
 
     for (i, params) in configs.iter().enumerate() {
-        let v1 = extract_msers(&img, w, h, params).unwrap();
-        let v2 = extract_msers_v2(&img, w, h, params).unwrap();
+        let v1 = extract_msers(&img, params).unwrap();
+        let v2 = extract_msers_v2(&img, params).unwrap();
 
         let label = format!("paper config {}", i);
         assert_v1_v2_close(
@@ -628,12 +818,23 @@ fn e2e_paper_multi_params_v1_v2_close() {
 
 #[test]
 fn e2e_label_multi_params_v1_v2_close() {
-    let (img, w, h) = load_grayscale(IMG_LABEL);
+    let (img, _, _) = load_grayscale(IMG_LABEL);
 
     let configs = [
-        MserParams { delta: 3, ..MserParams::default() },
-        MserParams { min_point: 30, max_point_ratio: 0.05, ..MserParams::default() },
-        MserParams { stable_variation: 0.8, duplicated_variation: 0.05, ..MserParams::default() },
+        MserParams {
+            delta: 3,
+            ..MserParams::default()
+        },
+        MserParams {
+            min_point: 30,
+            max_point_ratio: 0.05,
+            ..MserParams::default()
+        },
+        MserParams {
+            stable_variation: 0.8,
+            duplicated_variation: 0.05,
+            ..MserParams::default()
+        },
         MserParams {
             connected_type: ConnectedType::EightConnected,
             ..MserParams::default()
@@ -641,8 +842,8 @@ fn e2e_label_multi_params_v1_v2_close() {
     ];
 
     for (i, params) in configs.iter().enumerate() {
-        let v1 = extract_msers(&img, w, h, params).unwrap();
-        let v2 = extract_msers_v2(&img, w, h, params).unwrap();
+        let v1 = extract_msers(&img, params).unwrap();
+        let v2 = extract_msers_v2(&img, params).unwrap();
 
         let label = format!("label config {}", i);
         assert_v1_v2_close(

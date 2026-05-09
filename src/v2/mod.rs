@@ -5,9 +5,12 @@ pub mod parallel;
 pub mod process_patch;
 pub mod recognize;
 
-use crate::error::{Result, checked_image_len, validate_image_input};
+use crate::error::{
+    Result, checked_image_len, validate_gray_image_input, validate_raw_image_input,
+};
 use crate::params::{MserParams, ParallelConfig};
 use crate::types::{MserRegion, MserResult};
+use image::GrayImage;
 
 pub use parallel::extract_msers_v2_partitioned;
 
@@ -53,13 +56,18 @@ fn run_v2_pipeline(
 }
 
 /// Extract MSERs from a grayscale image using Fast MSER V2 (single-threaded).
-pub fn extract_msers_v2(
+pub fn extract_msers_v2(image: &GrayImage, params: &MserParams) -> Result<MserResult> {
+    validate_gray_image_input(image, params)?;
+    extract_msers_v2_raw(image.as_raw(), image.width(), image.height(), params)
+}
+
+pub(crate) fn extract_msers_v2_raw(
     image: &[u8],
     width: u32,
     height: u32,
     params: &MserParams,
 ) -> Result<MserResult> {
-    validate_image_input(image, width, height, params)?;
+    validate_raw_image_input(image, width, height, params)?;
     let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
     let mut result = MserResult::default();
 
@@ -75,13 +83,28 @@ pub fn extract_msers_v2(
 
 /// Extract MSERs using Fast MSER V2 with parallel from_min/from_max execution.
 pub fn extract_msers_v2_parallel(
+    image: &GrayImage,
+    params: &MserParams,
+    config: &ParallelConfig,
+) -> Result<MserResult> {
+    validate_gray_image_input(image, params)?;
+    extract_msers_v2_parallel_raw(
+        image.as_raw(),
+        image.width(),
+        image.height(),
+        params,
+        config,
+    )
+}
+
+pub(crate) fn extract_msers_v2_parallel_raw(
     image: &[u8],
     width: u32,
     height: u32,
     params: &MserParams,
     _config: &ParallelConfig,
 ) -> Result<MserResult> {
-    validate_image_input(image, width, height, params)?;
+    validate_raw_image_input(image, width, height, params)?;
     let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
 
     let (from_min, from_max) = rayon::join(
@@ -120,7 +143,7 @@ mod tests {
     fn test_v2_e2e_uniform() {
         let img = [128u8; 100];
         let params = default_params_with(1);
-        let result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert!(result.from_min.is_empty());
         assert!(result.from_max.is_empty());
@@ -136,7 +159,7 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         let total = result.from_min.len() + result.from_max.len();
         assert!(total > 0, "Should detect at least one MSER");
@@ -157,7 +180,7 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         let total = result.from_min.len() + result.from_max.len();
         assert!(
@@ -182,7 +205,7 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert!(
             !result.from_min.is_empty() || !result.from_max.is_empty(),
@@ -197,7 +220,7 @@ mod tests {
         img[45] = 200;
 
         let params = default_params_with(5);
-        let result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         let small_msers: Vec<_> = result
             .from_min
@@ -219,7 +242,7 @@ mod tests {
         params.min_point = 1;
         params.max_point_ratio = 0.1;
 
-        let result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         for mser in &result.from_min {
             assert!(
@@ -245,8 +268,8 @@ mod tests {
         let mut params_8 = default_params_with(1);
         params_8.connected_type = ConnectedType::EightConnected;
 
-        let _result_4 = extract_msers_v2(&img, 5, 5, &params_4).unwrap();
-        let _result_8 = extract_msers_v2(&img, 5, 5, &params_8).unwrap();
+        let _result_4 = extract_msers_v2_raw(&img, 5, 5, &params_4).unwrap();
+        let _result_8 = extract_msers_v2_raw(&img, 5, 5, &params_8).unwrap();
     }
 
     #[test]
@@ -259,8 +282,8 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let v1_result = crate::v1::extract_msers(&img, 10, 10, &params).unwrap();
-        let v2_result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let v1_result = crate::v1::extract_msers_raw(&img, 10, 10, &params).unwrap();
+        let v2_result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert_eq!(
             v1_result.from_min.len(),
@@ -295,8 +318,8 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let v1_result = crate::v1::extract_msers(&img, 10, 10, &params).unwrap();
-        let v2_result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let v1_result = crate::v1::extract_msers_raw(&img, 10, 10, &params).unwrap();
+        let v2_result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert_eq!(
             v1_result.from_min.len(),
@@ -322,8 +345,8 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let v1_result = crate::v1::extract_msers(&img, 10, 10, &params).unwrap();
-        let v2_result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let v1_result = crate::v1::extract_msers_raw(&img, 10, 10, &params).unwrap();
+        let v2_result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert_eq!(v1_result.from_min.len(), v2_result.from_min.len());
         assert_eq!(v1_result.from_max.len(), v2_result.from_max.len());
@@ -347,8 +370,8 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let v1 = crate::v1::extract_msers(&img, 20, 20, &params).unwrap();
-        let v2 = extract_msers_v2(&img, 20, 20, &params).unwrap();
+        let v1 = crate::v1::extract_msers_raw(&img, 20, 20, &params).unwrap();
+        let v2 = extract_msers_v2_raw(&img, 20, 20, &params).unwrap();
 
         assert_eq!(
             v1.from_min.len(),
@@ -399,8 +422,8 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let v1 = crate::v1::extract_msers(&img, 15, 15, &params).unwrap();
-        let v2 = extract_msers_v2(&img, 15, 15, &params).unwrap();
+        let v1 = crate::v1::extract_msers_raw(&img, 15, 15, &params).unwrap();
+        let v2 = extract_msers_v2_raw(&img, 15, 15, &params).unwrap();
 
         assert_eq!(v1.from_min.len(), v2.from_min.len());
 
@@ -448,8 +471,8 @@ mod tests {
             duplicated_variation: 0.2,
             ..MserParams::default()
         };
-        let v1 = crate::v1::extract_msers(&img, 20, 20, &params).unwrap();
-        let v2 = extract_msers_v2(&img, 20, 20, &params).unwrap();
+        let v1 = crate::v1::extract_msers_raw(&img, 20, 20, &params).unwrap();
+        let v2 = extract_msers_v2_raw(&img, 20, 20, &params).unwrap();
 
         assert_eq!(
             v1.from_min.len(),
@@ -490,7 +513,7 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let result = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert!(!result.from_min.is_empty(), "Should detect from_min MSERs");
         assert!(!result.from_max.is_empty(), "Should detect from_max MSERs");
@@ -535,8 +558,8 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let v1 = crate::v1::extract_msers(&img, 10, 10, &params).unwrap();
-        let v2 = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let v1 = crate::v1::extract_msers_raw(&img, 10, 10, &params).unwrap();
+        let v2 = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert_eq!(
             v1.from_min.len(),
@@ -575,7 +598,7 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let result = extract_msers_v2(&img, 15, 15, &params).unwrap();
+        let result = extract_msers_v2_raw(&img, 15, 15, &params).unwrap();
 
         let r10 = result.from_min.iter().find(|m| m.gray_level == 10);
         let r50 = result.from_min.iter().find(|m| m.gray_level == 50);
@@ -616,8 +639,8 @@ mod tests {
             connected_type: ConnectedType::EightConnected,
             ..MserParams::default()
         };
-        let v1 = crate::v1::extract_msers(&img, 10, 10, &params).unwrap();
-        let v2 = extract_msers_v2(&img, 10, 10, &params).unwrap();
+        let v1 = crate::v1::extract_msers_raw(&img, 10, 10, &params).unwrap();
+        let v2 = extract_msers_v2_raw(&img, 10, 10, &params).unwrap();
 
         assert_eq!(
             v1.from_min.len(),

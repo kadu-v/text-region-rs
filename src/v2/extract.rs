@@ -1,6 +1,6 @@
 use crate::block_memory::BlockMemory;
 use crate::params::ConnectedType;
-use crate::types::{MserRegion, Point, Rect};
+use crate::types::{MserRegion, Point, rect_from_points};
 use crate::v1::data::RegionFlag;
 use crate::v2::data::{MserRegionV2, dir_mask_v2};
 
@@ -188,7 +188,7 @@ pub fn extract_pixels_v2(
         msers.push(MserRegion {
             gray_level: region.gray_level ^ gray_mask,
             points,
-            bounding_rect: Rect::from_points(
+            bounding_rect: rect_from_points(
                 Point { x: min_x, y: min_y },
                 Point { x: max_x, y: max_y },
             ),

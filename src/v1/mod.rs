@@ -4,9 +4,12 @@ pub mod extract;
 pub mod process_patch;
 pub mod recognize;
 
-use crate::error::{Result, checked_image_len, validate_image_input};
+use crate::error::{
+    Result, checked_image_len, validate_gray_image_input, validate_raw_image_input,
+};
 use crate::params::{MserParams, ParallelConfig};
 use crate::types::{MserRegion, MserResult};
+use image::GrayImage;
 
 fn run_v1_pipeline(
     image: &[u8],
@@ -45,13 +48,18 @@ fn run_v1_pipeline(
 }
 
 /// Extract MSERs from a grayscale image using Fast MSER V1 (single-threaded).
-pub fn extract_msers(
+pub fn extract_msers(image: &GrayImage, params: &MserParams) -> Result<MserResult> {
+    validate_gray_image_input(image, params)?;
+    extract_msers_raw(image.as_raw(), image.width(), image.height(), params)
+}
+
+pub(crate) fn extract_msers_raw(
     image: &[u8],
     width: u32,
     height: u32,
     params: &MserParams,
 ) -> Result<MserResult> {
-    validate_image_input(image, width, height, params)?;
+    validate_raw_image_input(image, width, height, params)?;
     let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
     let mut result = MserResult::default();
 
@@ -67,13 +75,28 @@ pub fn extract_msers(
 
 /// Extract MSERs using Fast MSER V1 with parallel from_min/from_max execution.
 pub fn extract_msers_parallel(
+    image: &GrayImage,
+    params: &MserParams,
+    config: &ParallelConfig,
+) -> Result<MserResult> {
+    validate_gray_image_input(image, params)?;
+    extract_msers_parallel_raw(
+        image.as_raw(),
+        image.width(),
+        image.height(),
+        params,
+        config,
+    )
+}
+
+pub(crate) fn extract_msers_parallel_raw(
     image: &[u8],
     width: u32,
     height: u32,
     params: &MserParams,
     _config: &ParallelConfig,
 ) -> Result<MserResult> {
-    validate_image_input(image, width, height, params)?;
+    validate_raw_image_input(image, width, height, params)?;
     let max_point = (params.max_point_ratio * checked_image_len(width, height)? as f32) as i32;
 
     let (from_min, from_max) = rayon::join(
@@ -112,7 +135,7 @@ mod tests {
     fn test_e2e_uniform() {
         let img = [128u8; 100]; // 10x10 all same value
         let params = default_params_with(1);
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         // Uniform image → no MSERs (root has no parent)
         assert!(
@@ -136,7 +159,7 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         // Should detect the bright blob as MSER from_min (dark → bright)
         let total = result.from_min.len() + result.from_max.len();
@@ -161,7 +184,7 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         let total = result.from_min.len() + result.from_max.len();
         assert!(
@@ -189,7 +212,7 @@ mod tests {
         }
 
         let params = default_params_with(1);
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         // from_min should detect the dark blob (dark on bright)
         // from_max should detect the bright blob (bright on dark)
@@ -207,7 +230,7 @@ mod tests {
         img[45] = 200; // 2 pixels
 
         let params = default_params_with(5); // min_point = 5
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         // The 2-pixel blob should be filtered out by min_point=5
         let small_msers: Vec<_> = result
@@ -231,7 +254,7 @@ mod tests {
         params.min_point = 1;
         params.max_point_ratio = 0.1; // max 10 pixels
 
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         // Regions larger than 10 pixels should be filtered
         for mser in &result.from_min {
@@ -258,8 +281,8 @@ mod tests {
         let mut params_8 = default_params_with(1);
         params_8.connected_type = ConnectedType::EightConnected;
 
-        let _result_4 = extract_msers(&img, 5, 5, &params_4).unwrap();
-        let _result_8 = extract_msers(&img, 5, 5, &params_8).unwrap();
+        let _result_4 = extract_msers_raw(&img, 5, 5, &params_4).unwrap();
+        let _result_8 = extract_msers_raw(&img, 5, 5, &params_8).unwrap();
     }
 
     #[test]
@@ -280,7 +303,7 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         let total = result.from_min.len() + result.from_max.len();
         assert!(total > 0, "Should detect MSERs with extreme gray levels");
@@ -322,7 +345,7 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let result = extract_msers(&img, 15, 15, &params).unwrap();
+        let result = extract_msers_raw(&img, 15, 15, &params).unwrap();
 
         let r10 = result.from_min.iter().find(|m| m.gray_level == 10);
         let r50 = result.from_min.iter().find(|m| m.gray_level == 50);
@@ -368,7 +391,7 @@ mod tests {
             from_max: true,
             ..MserParams::default()
         };
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         assert!(
             result.from_min.is_empty(),
@@ -395,7 +418,7 @@ mod tests {
     fn test_e2e_single_pixel_image() {
         let img = [42u8];
         let params = default_params_with(1);
-        let result = extract_msers(&img, 1, 1, &params).unwrap();
+        let result = extract_msers_raw(&img, 1, 1, &params).unwrap();
         assert!(result.from_min.is_empty());
         assert!(result.from_max.is_empty());
     }
@@ -404,7 +427,7 @@ mod tests {
     fn test_e2e_1x2_image() {
         let img = [50u8, 100];
         let params = default_params_with(1);
-        let result = extract_msers(&img, 2, 1, &params).unwrap();
+        let result = extract_msers_raw(&img, 2, 1, &params).unwrap();
 
         // With default stable_variation=0.5, var(50)=(2-1)/1=1.0 > 0.5 → Invalid.
         // Root has no parent → Invalid. So no valid MSERs expected.
@@ -444,7 +467,7 @@ mod tests {
             duplicated_variation: 0.0,
             ..MserParams::default()
         };
-        let result = extract_msers(&img, 10, 10, &params).unwrap();
+        let result = extract_msers_raw(&img, 10, 10, &params).unwrap();
 
         for m in &result.from_min {
             let mut sorted = m.points.clone();
