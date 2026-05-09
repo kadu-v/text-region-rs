@@ -1,5 +1,7 @@
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use image::{GrayImage, ImageReader};
+use criterion::{
+    BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
+};
+use image::{GrayImage, ImageReader, imageops::FilterType};
 use std::time::Duration;
 use text_region_rs::params::{MserParams, ParallelConfig};
 use text_region_rs::{
@@ -27,6 +29,10 @@ fn default_detect_params(w: u32, h: u32) -> MserParams {
         nms_similarity: 0.5,
         ..MserParams::default()
     }
+}
+
+fn resize_grayscale(image: &GrayImage, width: u32, height: u32) -> GrayImage {
+    image::imageops::resize(image, width, height, FilterType::Triangle)
 }
 
 fn bench_all(c: &mut Criterion) {
@@ -96,5 +102,47 @@ fn bench_all(c: &mut Criterion) {
     g.finish();
 }
 
-criterion_group!(benches, bench_all);
+fn bench_image_sizes(c: &mut Criterion) {
+    let (source, _, _) = load_grayscale("resource/IMG_8237.jpeg");
+    let cfg = ParallelConfig { num_patches: 4 };
+    let sizes = [(480, 270), (960, 540), (1440, 810), (1920, 1080)];
+
+    let cases: Vec<_> = sizes
+        .into_iter()
+        .map(|(w, h)| {
+            let image = resize_grayscale(&source, w, h);
+            let params = default_detect_params(w, h);
+            (format!("{w}x{h}"), image, params)
+        })
+        .collect();
+
+    let mut g = c.benchmark_group("mser_by_image_size");
+    g.sample_size(10);
+    g.warm_up_time(Duration::from_millis(500));
+    g.measurement_time(Duration::from_secs(3));
+
+    for (name, image, params) in &cases {
+        let pixels = image.width() as u64 * image.height() as u64;
+        g.throughput(Throughput::Elements(pixels));
+
+        g.bench_with_input(
+            BenchmarkId::new("v2_single", name),
+            name,
+            |b, _| b.iter(|| extract_msers_v2(image, params).unwrap()),
+        );
+        g.bench_with_input(
+            BenchmarkId::new("v2_partitioned_4", name),
+            name,
+            |b, _| {
+                b.iter(|| {
+                    extract_msers_v2_partitioned(image, params, &cfg).unwrap()
+                })
+            },
+        );
+    }
+
+    g.finish();
+}
+
+criterion_group!(benches, bench_all, bench_image_sizes);
 criterion_main!(benches);
