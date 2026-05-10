@@ -3,10 +3,9 @@ use criterion::{
 };
 use image::{GrayImage, ImageReader, imageops::FilterType};
 use std::time::Duration;
-use text_region_rs::params::{MserParams, ParallelConfig};
-use text_region_rs::{
-    extract_msers, extract_msers_parallel, extract_msers_v2,
-    extract_msers_v2_parallel, extract_msers_v2_partitioned,
+use text_region_rs::mser::{
+    MserParams, ParallelConfig, extract_msers, extract_msers_parallel,
+    extract_msers_v2, extract_msers_v2_parallel, extract_msers_v2_partitioned,
 };
 
 fn load_grayscale(path: &str) -> (GrayImage, u32, u32) {

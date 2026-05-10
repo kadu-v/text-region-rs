@@ -1,6 +1,6 @@
-use crate::block_memory::BlockMemory;
-use crate::types::{MserRegion, Point, rect_from_points};
-use crate::v1::data::{LinkedPoint, MserRegionV1, RegionFlag};
+use crate::mser::block_memory::BlockMemory;
+use crate::mser::types::{MserRegion, Point, rect_from_points};
+use crate::mser::v1::data::{LinkedPoint, MserRegionV1, RegionFlag};
 
 /// Extract pixel coordinates for all valid MSER regions.
 /// This ports `extract_pixel_parallel_1_fast` for single-thread mode.
@@ -101,9 +101,9 @@ pub fn extract_pixels(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::ConnectedType;
-    use crate::v1::build_tree::make_tree_patch;
-    use crate::v1::recognize::recognize_mser;
+    use crate::mser::params::ConnectedType;
+    use crate::mser::v1::build_tree::make_tree_patch;
+    use crate::mser::v1::recognize::recognize_mser;
 
     fn run_full_pipeline(
         img: &[u8],

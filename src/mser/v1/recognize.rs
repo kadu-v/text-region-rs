@@ -1,9 +1,8 @@
-use crate::block_memory::BlockMemory;
-use crate::v1::data::RegionFlag;
-use crate::v2::data::MserRegionV2;
+use crate::mser::block_memory::BlockMemory;
+use crate::mser::v1::data::{MserRegionV1, RegionFlag};
 
 fn get_real_parent_for_merged(
-    regions: &BlockMemory<MserRegionV2>,
+    regions: &BlockMemory<MserRegionV1>,
     idx: usize,
 ) -> Option<usize> {
     let mut parent_opt = regions.get(idx).parent;
@@ -17,7 +16,7 @@ fn get_real_parent_for_merged(
 }
 
 fn get_set_real_parent_for_merged(
-    regions: &mut BlockMemory<MserRegionV2>,
+    regions: &mut BlockMemory<MserRegionV1>,
     idx: usize,
 ) -> Option<usize> {
     let result = get_real_parent_for_merged(regions, idx);
@@ -25,8 +24,10 @@ fn get_set_real_parent_for_merged(
     result
 }
 
+/// Compute variation for each region and mark invalid ones.
+/// This ports `recognize_mser_parallel_worker`.
 pub fn compute_variations(
-    regions: &mut BlockMemory<MserRegionV2>,
+    regions: &mut BlockMemory<MserRegionV1>,
     delta: i32,
     stable_variation: f32,
     min_point: i32,
@@ -75,8 +76,10 @@ pub fn compute_variations(
     }
 }
 
+/// Apply non-maximum suppression and count region level sizes.
+/// Returns (region_level_size, total_unknown_count).
 pub fn apply_nms_and_count(
-    regions: &mut BlockMemory<MserRegionV2>,
+    regions: &mut BlockMemory<MserRegionV1>,
     nms_similarity: f32,
 ) -> ([u32; 257], u32) {
     let mut region_level_size = [0u32; 257];
@@ -144,11 +147,13 @@ pub fn apply_nms_and_count(
     (region_level_size, total_unknown)
 }
 
+/// Build gray-ordered list of region indices.
 pub fn build_gray_order(
-    regions: &BlockMemory<MserRegionV2>,
+    regions: &BlockMemory<MserRegionV1>,
     region_level_size: &[u32; 257],
     total_unknown: u32,
 ) -> Vec<usize> {
+    // Build integral array (prefix sum) for counting sort
     let mut start_indexes = [0u32; 257];
     start_indexes[0] = 0;
     for i in 1..257 {
@@ -168,8 +173,9 @@ pub fn build_gray_order(
     gray_order
 }
 
+/// Find duplicated regions from a stable region upward.
 fn get_duplicated_regions(
-    regions: &BlockMemory<MserRegionV2>,
+    regions: &BlockMemory<MserRegionV1>,
     stable_idx: usize,
     begin_idx: usize,
     max_point: i32,
@@ -191,9 +197,7 @@ fn get_duplicated_regions(
             break;
         }
 
-        if parent.region_flag == RegionFlag::Invalid
-            || parent.region_flag == RegionFlag::Valid
-        {
+        if parent.region_flag == RegionFlag::Invalid {
             parent_opt = parent.parent;
             continue;
         }
@@ -203,16 +207,20 @@ fn get_duplicated_regions(
     }
 }
 
+/// Remove duplicated regions, keeping the middle one.
 pub fn remove_duplicates(
-    regions: &mut BlockMemory<MserRegionV2>,
+    regions: &mut BlockMemory<MserRegionV1>,
     gray_order: &[usize],
     max_point: i32,
     duplicated_variation: f32,
 ) -> Vec<usize> {
     if duplicated_variation <= 0.0 {
+        // No duplicate removal: mark all as valid
         let mut result = Vec::with_capacity(gray_order.len());
+        let mut _total_pixels = 0i64;
         for &idx in gray_order {
             regions.get_mut(idx).region_flag = RegionFlag::Valid;
+            _total_pixels += regions.get(idx).size as i64;
             result.push(idx);
         }
         return result;
@@ -261,6 +269,7 @@ pub fn remove_duplicates(
         }
     }
 
+    // Collect valid regions in gray order
     let mut valid_order = Vec::new();
     for &idx in gray_order {
         if regions.get(idx).region_flag == RegionFlag::Valid {
@@ -270,8 +279,10 @@ pub fn remove_duplicates(
     valid_order
 }
 
-pub fn recognize_mser_v2(
-    regions: &mut BlockMemory<MserRegionV2>,
+/// Full MSER recognition pipeline.
+/// Returns gray-ordered list of valid region indices.
+pub fn recognize_mser(
+    regions: &mut BlockMemory<MserRegionV1>,
     delta: i32,
     stable_variation: f32,
     nms_similarity: f32,
@@ -291,17 +302,17 @@ pub fn recognize_mser_v2(
 mod tests {
     use super::*;
 
-    fn make_chain_v2(levels: &[(u8, i32)]) -> BlockMemory<MserRegionV2> {
-        let mut regions = BlockMemory::<MserRegionV2>::new(4);
+    fn make_chain(levels: &[(u8, i32)]) -> BlockMemory<MserRegionV1> {
+        let mut regions = BlockMemory::<MserRegionV1>::new(4);
         let mut indices = Vec::new();
         for &(level, size) in levels {
-            let mut r = MserRegionV2::new();
+            let mut r = MserRegionV1::new();
             r.gray_level = level;
             r.size = size;
-            r.er_index = indices.len() as i32;
             let idx = regions.add(r);
             indices.push(idx);
         }
+        // Set up parent chain: each region's parent is the next one
         for i in 0..indices.len() - 1 {
             regions.get_mut(indices[i]).parent = Some(indices[i + 1]);
         }
@@ -309,19 +320,25 @@ mod tests {
     }
 
     #[test]
-    fn test_v2_variation_simple_chain() {
-        let mut regions = make_chain_v2(&[(0, 1), (1, 2), (2, 4)]);
+    fn test_variation_simple_chain() {
+        // Chain: level 0 (size 1) -> level 1 (size 2) -> level 2 (size 4)
+        let mut regions = make_chain(&[(0, 1), (1, 2), (2, 4)]);
+
         compute_variations(&mut regions, 1, 10.0, 0, 1000);
 
+        // var(0) = (2-1)/1 = 1.0
         assert_eq!(regions.get(0).var, 1.0);
+        // var(1) = (4-2)/2 = 1.0
         assert_eq!(regions.get(1).var, 1.0);
+        // var(2): parent is None, gray_level=2, threshold=3, no ancestor → -1
         assert_eq!(regions.get(2).var, -1.0);
     }
 
     #[test]
-    fn test_v2_variation_no_ancestor() {
-        let mut regions = BlockMemory::<MserRegionV2>::new(4);
-        let mut r = MserRegionV2::new();
+    fn test_variation_no_ancestor() {
+        // Single region with no parent
+        let mut regions = BlockMemory::<MserRegionV1>::new(4);
+        let mut r = MserRegionV1::new();
         r.gray_level = 5;
         r.size = 10;
         regions.add(r);
@@ -333,35 +350,51 @@ mod tests {
     }
 
     #[test]
-    fn test_v2_variation_filter() {
-        let mut regions = make_chain_v2(&[(0, 1), (1, 10), (2, 100)]);
+    fn test_variation_filter() {
+        let mut regions = make_chain(&[(0, 1), (1, 10), (2, 100)]);
+        // delta=1: var(0) = (10-1)/1 = 9.0, var(1) = (100-10)/10 = 9.0
         compute_variations(&mut regions, 1, 5.0, 0, 1000);
 
+        // Both should be Invalid because var > stable_variation
         assert_eq!(regions.get(0).region_flag, RegionFlag::Invalid);
         assert_eq!(regions.get(1).region_flag, RegionFlag::Invalid);
     }
 
     #[test]
-    fn test_v2_size_filter() {
-        let mut regions = make_chain_v2(&[(0, 5), (1, 10), (2, 100)]);
+    fn test_size_filter() {
+        let mut regions = make_chain(&[(0, 5), (1, 10), (2, 100)]);
         compute_variations(&mut regions, 1, 100.0, 8, 1000);
 
+        // region 0: size=5 < min_point=8 → Invalid
         assert_eq!(regions.get(0).region_flag, RegionFlag::Invalid);
     }
 
     #[test]
-    fn test_v2_nms_suppress_parent() {
-        let mut regions = make_chain_v2(&[(10, 100), (11, 200), (12, 1000)]);
+    fn test_var_negative_one() {
+        // Chain that doesn't reach gray_level + delta
+        let mut regions = make_chain(&[(0, 1), (1, 2)]);
+        compute_variations(&mut regions, 5, 10.0, 0, 1000);
+
+        // delta=5, threshold=5. Region 0 at level 0, parent at level 1.
+        // Can't reach level 5, and start_region.gray_level(1) != 5 → var = -1
+        assert_eq!(regions.get(0).var, -1.0);
+    }
+
+    #[test]
+    fn test_nms_suppress_parent() {
+        let mut regions = make_chain(&[(10, 100), (11, 200), (12, 1000)]);
+        // Manually set vars
         regions.get_mut(0).var = 0.1;
         regions.get_mut(1).var = 0.8;
+        // NMS: parent(level 11).var - child(level 10).var = 0.7 > 0 → suppress parent
         let _ = apply_nms_and_count(&mut regions, 0.0);
 
         assert_eq!(regions.get(1).region_flag, RegionFlag::Invalid);
     }
 
     #[test]
-    fn test_v2_nms_suppress_child() {
-        let mut regions = make_chain_v2(&[(10, 100), (11, 200), (12, 1000)]);
+    fn test_nms_suppress_child() {
+        let mut regions = make_chain(&[(10, 100), (11, 200), (12, 1000)]);
         regions.get_mut(0).var = 0.8;
         regions.get_mut(1).var = 0.1;
         let _ = apply_nms_and_count(&mut regions, 0.0);
@@ -370,49 +403,70 @@ mod tests {
     }
 
     #[test]
-    fn test_v2_nms_disabled() {
-        let mut regions = make_chain_v2(&[(10, 100), (11, 200), (12, 1000)]);
-        regions.get_mut(0).var = 0.1;
-        regions.get_mut(1).var = 0.8;
-        let _ = apply_nms_and_count(&mut regions, -1.0);
+    fn test_nms_within_threshold() {
+        let mut regions = make_chain(&[(10, 100), (11, 200), (12, 1000)]);
+        regions.get_mut(0).var = 0.4;
+        regions.get_mut(1).var = 0.5;
+        // Difference = 0.1, nms_similarity = 0.5 → not suppressed
+        let _ = apply_nms_and_count(&mut regions, 0.5);
 
+        // Both should remain Unknown
         assert_eq!(regions.get(0).region_flag, RegionFlag::Unknown);
         assert_eq!(regions.get(1).region_flag, RegionFlag::Unknown);
     }
 
     #[test]
-    fn test_v2_no_duplicates() {
-        let mut regions = make_chain_v2(&[(0, 10), (1, 100), (2, 1000)]);
+    fn test_nms_disabled() {
+        let mut regions = make_chain(&[(10, 100), (11, 200), (12, 1000)]);
+        regions.get_mut(0).var = 0.1;
+        regions.get_mut(1).var = 0.8;
+        let (_, _) = apply_nms_and_count(&mut regions, -1.0);
+
+        // NMS disabled → nothing suppressed
+        assert_eq!(regions.get(0).region_flag, RegionFlag::Unknown);
+        assert_eq!(regions.get(1).region_flag, RegionFlag::Unknown);
+    }
+
+    #[test]
+    fn test_no_duplicates() {
+        let mut regions = make_chain(&[(0, 10), (1, 100), (2, 1000)]);
+        // All Unknown
         let gray_order = vec![0, 1, 2];
         let result = remove_duplicates(&mut regions, &gray_order, 10000, 0.1);
 
+        // Sizes differ significantly → no duplicates removed → all valid
         assert_eq!(result.len(), 3);
     }
 
     #[test]
-    fn test_v2_remove_duplicates_simple() {
-        let mut regions = make_chain_v2(&[(0, 100), (1, 101), (2, 102)]);
+    fn test_remove_duplicates_simple() {
+        // Three regions with very similar sizes
+        let mut regions = make_chain(&[(0, 100), (1, 101), (2, 102)]);
+        // All set to Unknown
         let gray_order = vec![0, 1, 2];
+        // duplicated_variation = 0.05 → (101-100)/100 = 0.01 < 0.05 → duplicate
         let result = remove_duplicates(&mut regions, &gray_order, 10000, 0.05);
 
+        // Should keep only the middle one
         assert!(result.len() < 3);
     }
 
     #[test]
-    fn test_v2_duplicate_disabled() {
-        let mut regions = make_chain_v2(&[(0, 100), (1, 101), (2, 1000)]);
+    fn test_duplicate_disabled() {
+        let mut regions = make_chain(&[(0, 100), (1, 101), (2, 1000)]);
         let gray_order = vec![0, 1, 2];
         let result = remove_duplicates(&mut regions, &gray_order, 10000, 0.0);
 
+        // Disabled → all marked valid
         assert_eq!(result.len(), 3);
     }
 
     #[test]
-    fn test_v2_gray_order_sorting() {
-        let mut regions = BlockMemory::<MserRegionV2>::new(4);
+    fn test_gray_order_sorting() {
+        let mut regions = BlockMemory::<MserRegionV1>::new(4);
         let levels = [5u8, 2, 8, 2, 5];
         for &level in &levels {
-            let mut r = MserRegionV2::new();
+            let mut r = MserRegionV1::new();
             r.gray_level = level;
             r.size = 10;
             regions.add(r);
@@ -425,23 +479,12 @@ mod tests {
 
         let order = build_gray_order(&regions, &level_size, 5);
 
+        // Should be sorted by gray level
         let ordered_levels: Vec<u8> = order
             .iter()
             .map(|&idx| regions.get(idx).gray_level)
             .collect();
         assert_eq!(ordered_levels, vec![2, 2, 5, 5, 8]);
-    }
-
-    #[test]
-    fn test_v2_full_pipeline() {
-        let mut regions = make_chain_v2(&[(0, 10), (1, 12), (2, 50), (3, 200)]);
-        let valid =
-            recognize_mser_v2(&mut regions, 1, 10.0, -1.0, 0.0, 1, 1000);
-
-        assert!(!valid.is_empty());
-        for &idx in &valid {
-            assert_eq!(regions.get(idx).region_flag, RegionFlag::Valid);
-        }
     }
 }
 
@@ -449,14 +492,13 @@ mod tests {
 mod regression_tests {
     use super::*;
 
-    fn make_chain_v2(levels: &[(u8, i32)]) -> BlockMemory<MserRegionV2> {
-        let mut regions = BlockMemory::<MserRegionV2>::new(4);
+    fn make_chain(levels: &[(u8, i32)]) -> BlockMemory<MserRegionV1> {
+        let mut regions = BlockMemory::<MserRegionV1>::new(4);
         let mut indices = Vec::new();
         for &(level, size) in levels {
-            let mut r = MserRegionV2::new();
+            let mut r = MserRegionV1::new();
             r.gray_level = level;
             r.size = size;
-            r.er_index = indices.len() as i32;
             let idx = regions.add(r);
             indices.push(idx);
         }
@@ -467,11 +509,14 @@ mod regression_tests {
     }
 
     #[test]
-    fn test_v2_nms_gray_level_255_no_overflow() {
-        let mut regions = make_chain_v2(&[(254, 100), (255, 200)]);
+    fn test_nms_gray_level_255_no_overflow() {
+        // Regression: gray_level + 1 used to overflow u8 when gray_level=255.
+        // C++ promotes u8 to int automatically; Rust u8 wraps/panics.
+        let mut regions = make_chain(&[(254, 100), (255, 200)]);
         regions.get_mut(0).var = 0.1;
         regions.get_mut(1).var = 0.8;
 
+        // This should NOT panic and should correctly suppress parent at level 255
         let (_, total) = apply_nms_and_count(&mut regions, 0.0);
 
         assert_eq!(regions.get(1).region_flag, RegionFlag::Invalid);
@@ -479,11 +524,15 @@ mod regression_tests {
     }
 
     #[test]
-    fn test_v2_nms_gray_level_255_child_at_max() {
-        let mut regions = make_chain_v2(&[(255, 100), (255, 200)]);
+    fn test_nms_gray_level_255_child_at_max() {
+        // When the child is at gray level 255, gray_level + 1 = 256 in C++.
+        // No parent can have gray level 256, so NMS should not fire.
+        let mut regions = make_chain(&[(255, 100), (255, 200)]);
         regions.get_mut(0).var = 0.1;
         regions.get_mut(1).var = 0.8;
+        // parent gray (255) != child gray (255) + 1 (256) → NMS not applied
         let _ = apply_nms_and_count(&mut regions, 0.0);
+        // Both remain Unknown since NMS condition (parent == child+1) fails
         assert_eq!(regions.get(0).region_flag, RegionFlag::Unknown);
         assert_eq!(regions.get(1).region_flag, RegionFlag::Unknown);
     }

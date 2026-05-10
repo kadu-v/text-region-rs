@@ -1,9 +1,9 @@
 use image::{ImageReader, Rgb, RgbImage};
 use std::env;
 use text_region_rs::error::Result;
-use text_region_rs::params::{ConnectedType, MserParams};
-use text_region_rs::types::MserRegion;
-use text_region_rs::{extract_msers, extract_msers_v2};
+use text_region_rs::mser::{
+    ConnectedType, MserParams, MserRegion, extract_msers, extract_msers_v2,
+};
 
 fn draw_regions(base: &mut RgbImage, regions: &[MserRegion], color: Rgb<u8>) {
     for r in regions {

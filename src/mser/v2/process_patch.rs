@@ -1,5 +1,5 @@
-use crate::params::ConnectedType;
-use crate::v2::data::boundary_pixel;
+use crate::mser::params::ConnectedType;
+use crate::mser::v2::data::boundary_pixel;
 
 pub struct ProcessedPatchV2 {
     pub extended_image: Vec<u8>,

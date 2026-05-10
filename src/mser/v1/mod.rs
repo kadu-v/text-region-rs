@@ -5,8 +5,8 @@ pub mod process_patch;
 pub mod recognize;
 
 use crate::error::{Result, validate_raw_image_input};
-use crate::params::{MserParams, ParallelConfig};
-use crate::types::{MserRegion, MserRegions};
+use crate::mser::params::{MserParams, ParallelConfig};
+use crate::mser::types::{MserRegion, MserRegions};
 use image::GrayImage;
 
 fn run_v1_pipeline(
@@ -123,7 +123,7 @@ pub(crate) fn extract_msers_parallel_raw(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::ConnectedType;
+    use crate::mser::params::ConnectedType;
 
     fn default_params_with(min_point: i32) -> MserParams {
         MserParams {

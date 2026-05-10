@@ -1,14 +1,14 @@
 use rayon::prelude::*;
 
-use crate::block_memory::BlockMemory;
 use crate::error::{Result, validate_raw_image_input};
-use crate::params::{ConnectedType, MserParams, ParallelConfig};
-use crate::partition::*;
-use crate::types::{MserRegion, MserRegions};
-use crate::v1::data::RegionFlag;
-use crate::v2::build_tree::{TreeBuildResultV2, make_tree_patch_v2};
-use crate::v2::data::*;
-use crate::v2::{extract, recognize};
+use crate::mser::block_memory::BlockMemory;
+use crate::mser::params::{ConnectedType, MserParams, ParallelConfig};
+use crate::mser::partition::*;
+use crate::mser::types::{MserRegion, MserRegions};
+use crate::mser::v1::data::RegionFlag;
+use crate::mser::v2::build_tree::{TreeBuildResultV2, make_tree_patch_v2};
+use crate::mser::v2::data::*;
+use crate::mser::v2::{extract, recognize};
 use image::GrayImage;
 
 struct PatchTreeV2 {
@@ -328,7 +328,7 @@ fn run_v2_parallel_pipeline(
     boundary_edges: &[BoundaryEdge],
 ) -> Vec<MserRegion> {
     if patches.len() <= 1 {
-        return crate::v2::run_v2_pipeline(
+        return crate::mser::v2::run_v2_pipeline(
             image, width, height, params, max_point, gray_mask,
         );
     }
@@ -439,8 +439,8 @@ pub(crate) fn extract_msers_v2_partitioned_raw(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::ConnectedType;
-    use crate::v2::extract_msers_v2_raw;
+    use crate::mser::params::ConnectedType;
+    use crate::mser::v2::extract_msers_v2_raw;
 
     fn default_params() -> MserParams {
         MserParams {

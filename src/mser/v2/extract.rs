@@ -1,8 +1,8 @@
-use crate::block_memory::BlockMemory;
-use crate::params::ConnectedType;
-use crate::types::{MserRegion, Point, rect_from_points};
-use crate::v1::data::RegionFlag;
-use crate::v2::data::{MserRegionV2, dir_mask_v2};
+use crate::mser::block_memory::BlockMemory;
+use crate::mser::params::ConnectedType;
+use crate::mser::types::{MserRegion, Point, rect_from_points};
+use crate::mser::v1::data::RegionFlag;
+use crate::mser::v2::data::{MserRegionV2, dir_mask_v2};
 
 /// Extract pixel coordinates for all valid MSER regions (V2).
 /// V2 scans all interior pixels, looks up er_index from points array,
@@ -211,8 +211,8 @@ pub fn extract_pixels_v2(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v2::build_tree::make_tree_patch_v2;
-    use crate::v2::recognize::recognize_mser_v2;
+    use crate::mser::v2::build_tree::make_tree_patch_v2;
+    use crate::mser::v2::recognize::recognize_mser_v2;
 
     fn run_v2_pipeline(
         img: &[u8],

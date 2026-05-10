@@ -2,8 +2,9 @@ use image::ImageReader;
 use std::env;
 use std::time::Instant;
 use text_region_rs::error::Result;
-use text_region_rs::params::{MserParams, ParallelConfig};
-use text_region_rs::{extract_msers_v2, extract_msers_v2_partitioned};
+use text_region_rs::mser::{
+    MserParams, ParallelConfig, extract_msers_v2, extract_msers_v2_partitioned,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Variant {

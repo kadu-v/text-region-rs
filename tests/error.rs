@@ -1,6 +1,6 @@
 use image::GrayImage;
 use text_region_rs::error::MserError;
-use text_region_rs::partition::compute_grid_config;
+use text_region_rs::mser::partition::compute_grid_config;
 use text_region_rs::{MserParams, extract_msers, extract_msers_v2_partitioned};
 
 #[test]

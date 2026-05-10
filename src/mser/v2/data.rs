@@ -1,5 +1,5 @@
-use crate::params::ConnectedType;
-use crate::v1::data::RegionFlag;
+use crate::mser::params::ConnectedType;
+use crate::mser::v1::data::RegionFlag;
 
 #[derive(Debug, Clone)]
 pub struct MserRegionV2 {

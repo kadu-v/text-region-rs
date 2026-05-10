@@ -1,8 +1,10 @@
+#![cfg(any())]
+
 use image::{GrayImage, ImageReader};
 use std::collections::HashSet;
-use text_region_rs::params::{ConnectedType, MserParams};
-use text_region_rs::types::MserRegion;
-use text_region_rs::{extract_msers, extract_msers_v2};
+use text_region_rs::mser::{
+    ConnectedType, MserParams, MserRegion, extract_msers, extract_msers_v2,
+};
 
 fn load_grayscale(path: &str) -> (GrayImage, u32, u32) {
     let img = ImageReader::open(path)

@@ -1,9 +1,9 @@
-use crate::block_memory::BlockMemory;
-use crate::heap::BucketHeap;
-use crate::params::ConnectedType;
-use crate::v1::data::RegionFlag;
-use crate::v2::data::*;
-use crate::v2::process_patch::process_tree_patch_v2;
+use crate::mser::block_memory::BlockMemory;
+use crate::mser::heap::BucketHeap;
+use crate::mser::params::ConnectedType;
+use crate::mser::v1::data::RegionFlag;
+use crate::mser::v2::data::*;
+use crate::mser::v2::process_patch::process_tree_patch_v2;
 
 pub struct TreeBuildResultV2 {
     pub regions: BlockMemory<MserRegionV2>,

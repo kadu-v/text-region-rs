@@ -1,4 +1,4 @@
-use crate::v1::data::BOUNDARY_YES_MASK;
+use crate::mser::v1::data::BOUNDARY_YES_MASK;
 
 pub struct ProcessedPatch {
     pub masked_image: Vec<i16>,

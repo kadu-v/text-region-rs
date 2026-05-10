@@ -1,4 +1,4 @@
-use crate::params::MserParams;
+use crate::mser::params::MserParams;
 
 pub type Result<T> = std::result::Result<T, MserError>;
 
@@ -35,6 +35,12 @@ pub enum MserError {
 
     #[error("invalid MSER parameter `{field}`: {message}")]
     InvalidMserParams {
+        field: &'static str,
+        message: &'static str,
+    },
+
+    #[error("invalid SWT input `{field}`: {message}")]
+    InvalidSwtInput {
         field: &'static str,
         message: &'static str,
     },

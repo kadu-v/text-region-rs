@@ -1,4 +1,4 @@
-use crate::params::ConnectedType;
+use crate::mser::params::ConnectedType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegionFlag {
