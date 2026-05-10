@@ -1,33 +1,11 @@
-use image::{GrayImage, ImageReader, Rgb, RgbImage};
+use image::{ImageReader, Rgb, RgbImage};
 use std::env;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::time::Instant;
 use text_region_rs::error::Result;
-use text_region_rs::swt::{
-    Rect, SwtBgrInput, SwtParams, detect_text_swt_with_debug,
-};
-
-fn rgb_to_bgr(rgb: &RgbImage) -> Vec<u8> {
-    let mut bgr = Vec::with_capacity(rgb.as_raw().len());
-    for pixel in rgb.as_raw().chunks_exact(3) {
-        bgr.push(pixel[2]);
-        bgr.push(pixel[1]);
-        bgr.push(pixel[0]);
-    }
-    bgr
-}
-
-fn bgr_to_rgb_image(width: u32, height: u32, bgr: &[u8]) -> RgbImage {
-    let mut rgb = Vec::with_capacity(bgr.len());
-    for pixel in bgr.chunks_exact(3) {
-        rgb.push(pixel[2]);
-        rgb.push(pixel[1]);
-        rgb.push(pixel[0]);
-    }
-    RgbImage::from_raw(width, height, rgb).expect("valid RGB debug image")
-}
+use text_region_rs::swt::{Rect, SwtParams, detect_text_swt_with_debug};
 
 fn output_stem(path: &str) -> String {
     let path = Path::new(path);
@@ -88,15 +66,9 @@ fn main() -> Result<()> {
     let img = ImageReader::open(&image_path)?.decode()?.to_rgb8();
     let width = img.width();
     let height = img.height();
-    let bgr = rgb_to_bgr(&img);
 
     let start = Instant::now();
-    let output = detect_text_swt_with_debug(SwtBgrInput {
-        width,
-        height,
-        bgr: &bgr,
-        params: SwtParams::default(),
-    })?;
+    let output = detect_text_swt_with_debug(&img, SwtParams::default())?;
     let elapsed = start.elapsed();
 
     let stem = output_stem(&image_path);
@@ -106,16 +78,13 @@ fn main() -> Result<()> {
     let letters_path = format!("{stem}_swt_letters.tsv");
     let chains_path = format!("{stem}_swt_chains.tsv");
 
-    let debug_img = bgr_to_rgb_image(width, height, &output.draw_bgr);
-    debug_img.save(&debug_path)?;
+    output.draw_rgb.save(&debug_path)?;
 
     let mut overlay_img = img.clone();
     draw_rects(&mut overlay_img, &output.detections.letter_bounding_boxes);
     overlay_img.save(&overlay_path)?;
 
-    let normalized = GrayImage::from_raw(width, height, output.normalized_swt)
-        .expect("valid normalized SWT image");
-    normalized.save(&normalized_path)?;
+    output.normalized_swt.save(&normalized_path)?;
     save_rects(&letters_path, &output.detections.letter_bounding_boxes)?;
     save_rects(&chains_path, &output.detections.chain_bounding_boxes)?;
 

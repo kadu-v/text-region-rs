@@ -1,21 +1,22 @@
 use super::Rect;
 
-pub(super) fn render_debug_bgr(
+pub(super) fn render_debug_rgb(
     width: usize,
     height: usize,
     rects: &[Rect],
-) -> Vec<u8> {
+) -> image::RgbImage {
     let mut output = vec![255_u8; width * height * 3];
 
-    let colors = [[255, 0, 0], [0, 255, 0], [0, 0, 255]];
+    let colors = [[0, 0, 255], [0, 255, 0], [255, 0, 0]];
     for (i, rect) in rects.iter().enumerate() {
         let color = colors[i % colors.len()];
-        draw_rect_bgr(&mut output, width, height, *rect, color);
+        draw_rect_rgb(&mut output, width, height, *rect, color);
     }
-    output
+    image::RgbImage::from_vec(width as u32, height as u32, output)
+        .expect("valid RGB debug image")
 }
 
-fn draw_rect_bgr(
+fn draw_rect_rgb(
     output: &mut [u8],
     width: usize,
     height: usize,
@@ -36,16 +37,16 @@ fn draw_rect_bgr(
     }
 
     for x in x0..=x1 {
-        set_bgr(output, width, x, y0, color);
-        set_bgr(output, width, x, y1, color);
+        set_rgb(output, width, x, y0, color);
+        set_rgb(output, width, x, y1, color);
     }
     for y in y0..=y1 {
-        set_bgr(output, width, x0, y, color);
-        set_bgr(output, width, x1, y, color);
+        set_rgb(output, width, x0, y, color);
+        set_rgb(output, width, x1, y, color);
     }
 }
 
-fn set_bgr(
+fn set_rgb(
     output: &mut [u8],
     width: usize,
     x: usize,

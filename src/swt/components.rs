@@ -19,10 +19,10 @@ struct ComponentAttr {
     width: f32,
 }
 
-pub fn normalize_and_scale(image: &SwtImage) -> Vec<u8> {
+pub fn normalize_and_scale(image: &SwtImage) -> image::GrayImage {
     let mut min_swt = f32::MAX;
     let mut max_swt = 0.0_f32;
-    for &value in &image.data {
+    for &value in image.as_raw() {
         if value < 0.0 {
             continue;
         }
@@ -30,38 +30,41 @@ pub fn normalize_and_scale(image: &SwtImage) -> Vec<u8> {
         max_swt = max_swt.max(value);
     }
 
-    if min_swt == f32::MAX {
-        return vec![255; image.data.len()];
-    }
-
-    let amplitude = max_swt - min_swt;
-    image
-        .data
-        .iter()
-        .map(|&value| {
-            if value < 0.0 {
-                255
-            } else if amplitude <= f32::EPSILON {
-                0
-            } else {
-                (((value - min_swt) / amplitude) * 255.0) as u8
-            }
-        })
-        .collect()
+    let data = if min_swt == f32::MAX {
+        vec![255; image.as_raw().len()]
+    } else {
+        let amplitude = max_swt - min_swt;
+        image
+            .as_raw()
+            .iter()
+            .map(|&value| {
+                if value < 0.0 {
+                    255
+                } else if amplitude <= f32::EPSILON {
+                    0
+                } else {
+                    (((value - min_swt) / amplitude) * 255.0) as u8
+                }
+            })
+            .collect()
+    };
+    image::GrayImage::from_vec(image.width(), image.height(), data)
+        .expect("valid normalized SWT image")
 }
 
 pub fn swt_connected_components(image: &SwtImage) -> Result<Vec<Vec<Point>>> {
     super::validation::validate_swt_image(image)?;
 
-    let width = image.width as usize;
-    let height = image.height as usize;
-    let mut visited = vec![false; image.data.len()];
+    let width = image.width() as usize;
+    let height = image.height() as usize;
+    let swt = image.as_raw();
+    let mut visited = vec![false; swt.len()];
     let mut components = Vec::new();
 
     for row in 0..height {
         for col in 0..width {
             let idx = row * width + col;
-            if visited[idx] || image.data[idx] < 0.0 {
+            if visited[idx] || swt[idx] < 0.0 {
                 continue;
             }
 
@@ -82,13 +85,12 @@ pub fn swt_connected_components(image: &SwtImage) -> Result<Vec<Vec<Point>>> {
                     height,
                 ) {
                     let nidx = ny * width + nx;
-                    if visited[nidx] || image.data[nidx] < 0.0 {
+                    if visited[nidx] || swt[nidx] < 0.0 {
                         continue;
                     }
                     if swt_neighbors_match(
-                        image.data
-                            [point_index_from_xy(width, point.x, point.y)],
-                        image.data[nidx],
+                        swt[point_index_from_xy(width, point.x, point.y)],
+                        swt[nidx],
                     ) {
                         visited[nidx] = true;
                         stack.push(Point {
@@ -105,13 +107,12 @@ pub fn swt_connected_components(image: &SwtImage) -> Result<Vec<Vec<Point>>> {
                     height,
                 ) {
                     let nidx = ny * width + nx;
-                    if visited[nidx] || image.data[nidx] < 0.0 {
+                    if visited[nidx] || swt[nidx] < 0.0 {
                         continue;
                     }
                     if swt_neighbors_match(
-                        image.data
-                            [point_index_from_xy(width, point.x, point.y)],
-                        image.data[nidx],
+                        swt[point_index_from_xy(width, point.x, point.y)],
+                        swt[nidx],
                     ) {
                         visited[nidx] = true;
                         stack.push(Point {
@@ -283,7 +284,8 @@ fn component_attributes(
     image: &SwtImage,
     component: &[Point],
 ) -> ComponentAttr {
-    let width = image.width as usize;
+    let width = image.width() as usize;
+    let swt = image.as_raw();
     let mut values = Vec::with_capacity(component.len());
     let mut sum = 0.0_f32;
     let mut xmin = i32::MAX;
@@ -292,7 +294,7 @@ fn component_attributes(
     let mut ymax = 0_i32;
 
     for point in component {
-        let value = image.data[point_index_from_xy(width, point.x, point.y)];
+        let value = swt[point_index_from_xy(width, point.x, point.y)];
         sum += value;
         values.push(value);
         xmin = xmin.min(point.x);

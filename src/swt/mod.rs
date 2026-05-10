@@ -14,41 +14,42 @@ pub use chains::detect_text_regions_from_swt;
 pub use components::{
     filter_swt_components, normalize_and_scale, swt_connected_components,
 };
-pub use preprocess::swt_preprocess_bgr;
+pub use preprocess::swt_preprocess_rgb;
 pub use transform::stroke_width_transform;
 pub use types::{
-    SwtBgrInput, SwtComponent, SwtDebugOutput, SwtDetections, SwtImage,
-    SwtInput, SwtParams, SwtPreprocessed,
+    GrayF32Image, SwtComponent, SwtDebugOutput, SwtDetections, SwtImage,
+    SwtParams, SwtPreprocessed,
 };
 
 pub const INVALID_STROKE_WIDTH: f32 = -1.0;
 pub(super) const SWT_COMPONENT_RATIO_THRESHOLD: f32 = 3.0;
 pub(super) const COMPONENT_ROTATION_STEPS: usize = 36;
 
-pub fn detect_text_swt(input: SwtBgrInput<'_>) -> Result<SwtDetections> {
-    Ok(detect_text_swt_with_debug(input)?.detections)
+pub fn detect_text_swt(
+    image: &image::RgbImage,
+    params: SwtParams,
+) -> Result<SwtDetections> {
+    Ok(detect_text_swt_with_debug(image, params)?.detections)
 }
 
 pub fn detect_text_swt_with_debug(
-    input: SwtBgrInput<'_>,
+    image: &image::RgbImage,
+    params: SwtParams,
 ) -> Result<SwtDebugOutput> {
-    validation::validate_bgr_input(input.width, input.height, input.bgr)?;
+    validation::validate_image_dimensions(image.width(), image.height())?;
 
-    let preprocessed =
-        swt_preprocess_bgr(input.width, input.height, input.bgr)?;
-    let swt_image = stroke_width_transform(SwtInput {
-        width: input.width,
-        height: input.height,
-        edge: &preprocessed.edge,
-        gradient_x: &preprocessed.gradient_x,
-        gradient_y: &preprocessed.gradient_y,
-        params: input.params,
-    })?;
-    let detections = detect_text_regions_from_swt(&swt_image, input.bgr)?;
+    let preprocessed = swt_preprocess_rgb(image)?;
+    let swt_image = stroke_width_transform(
+        &preprocessed.edge,
+        &preprocessed.gradient_x,
+        &preprocessed.gradient_y,
+        params,
+    )?;
+    let detections = detect_text_regions_from_swt(&swt_image, image)?;
     let normalized_swt = normalize_and_scale(&swt_image);
-    let draw_bgr = render::render_debug_bgr(
-        input.width as usize,
-        input.height as usize,
+    let draw_rgb = render::render_debug_rgb(
+        image.width() as usize,
+        image.height() as usize,
         &detections.letter_bounding_boxes,
     );
 
@@ -57,6 +58,6 @@ pub fn detect_text_swt_with_debug(
         preprocessed,
         swt_image,
         normalized_swt,
-        draw_bgr,
+        draw_rgb,
     })
 }

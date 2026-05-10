@@ -1,19 +1,25 @@
 use crate::error::Result;
 
-use super::SwtPreprocessed;
+use super::{GrayF32Image, SwtPreprocessed};
 
-pub fn swt_preprocess_bgr(
-    width: u32,
-    height: u32,
-    bgr: &[u8],
-) -> Result<SwtPreprocessed> {
-    super::validation::validate_bgr_input(width, height, bgr)?;
+pub fn swt_preprocess_rgb(image: &image::RgbImage) -> Result<SwtPreprocessed> {
+    let width = image.width();
+    let height = image.height();
+    super::validation::validate_image_dimensions(width, height)?;
 
-    let gray = bgr_to_gray(bgr);
-    let edge =
-        canny_3x3_l1(&gray, width as usize, height as usize, 175.0, 320.0);
+    let gray = rgb_to_gray(image);
+    let edge_data = canny_3x3_l1(
+        gray.as_raw(),
+        width as usize,
+        height as usize,
+        175.0,
+        320.0,
+    );
+    let edge = image::GrayImage::from_vec(width, height, edge_data)
+        .expect("valid edge image");
 
     let gaussian = gray
+        .as_raw()
         .iter()
         .map(|&value| value as f32 / 255.0)
         .collect::<Vec<_>>();
@@ -24,10 +30,12 @@ pub fn swt_preprocess_bgr(
         gaussian_blur(&gradient_x, width as usize, height as usize, 3);
     let gradient_y =
         gaussian_blur(&gradient_y, width as usize, height as usize, 3);
+    let gradient_x = GrayF32Image::from_vec(width, height, gradient_x)
+        .expect("valid gradient_x image");
+    let gradient_y = GrayF32Image::from_vec(width, height, gradient_y)
+        .expect("valid gradient_y image");
 
     Ok(SwtPreprocessed {
-        width,
-        height,
         gray,
         edge,
         gradient_x,
@@ -35,15 +43,19 @@ pub fn swt_preprocess_bgr(
     })
 }
 
-fn bgr_to_gray(bgr: &[u8]) -> Vec<u8> {
-    bgr.chunks_exact(3)
+fn rgb_to_gray(image: &image::RgbImage) -> image::GrayImage {
+    let gray = image
+        .as_raw()
+        .chunks_exact(3)
         .map(|pixel| {
-            let b = pixel[0] as f32;
+            let r = pixel[0] as f32;
             let g = pixel[1] as f32;
-            let r = pixel[2] as f32;
+            let b = pixel[2] as f32;
             (0.114 * b + 0.587 * g + 0.299 * r).round() as u8
         })
-        .collect()
+        .collect();
+    image::GrayImage::from_vec(image.width(), image.height(), gray)
+        .expect("valid grayscale image")
 }
 
 fn gaussian_blur(

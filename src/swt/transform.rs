@@ -1,7 +1,7 @@
 use crate::error::Result;
 
 use super::geometry::point_index_from_xy;
-use super::{INVALID_STROKE_WIDTH, SwtImage, SwtInput};
+use super::{GrayF32Image, INVALID_STROKE_WIDTH, SwtImage, SwtParams};
 
 #[derive(Clone, Copy, Debug)]
 struct SwtPoint {
@@ -16,35 +16,74 @@ struct Ray {
     points: Vec<SwtPoint>,
 }
 
-pub fn stroke_width_transform(input: SwtInput<'_>) -> Result<SwtImage> {
-    let len = super::validation::validate_input(&input)?;
+pub fn stroke_width_transform(
+    edge: &image::GrayImage,
+    gradient_x: &GrayF32Image,
+    gradient_y: &GrayF32Image,
+    params: SwtParams,
+) -> Result<SwtImage> {
+    let len = super::validation::validate_image_dimensions(
+        edge.width(),
+        edge.height(),
+    )?;
+    super::validation::validate_matching_gray_f32(
+        "gradient_x",
+        gradient_x,
+        edge.width(),
+        edge.height(),
+    )?;
+    super::validation::validate_matching_gray_f32(
+        "gradient_y",
+        gradient_y,
+        edge.width(),
+        edge.height(),
+    )?;
+
     let mut swt = vec![INVALID_STROKE_WIDTH; len];
     let mut rays = Vec::new();
 
-    swt_first_pass(&input, &mut swt, &mut rays);
-    swt_second_pass(input.width as usize, &mut swt, &rays);
+    let input = TransformInput {
+        edge,
+        gradient_x,
+        gradient_y,
+        params,
+    };
+    swt_first_pass(input, &mut swt, &mut rays);
+    swt_second_pass(edge.width() as usize, &mut swt, &rays);
 
-    Ok(SwtImage {
-        width: input.width,
-        height: input.height,
-        data: swt,
-    })
+    Ok(SwtImage::from_vec(edge.width(), edge.height(), swt)
+        .expect("validated SWT buffer length"))
 }
 
-fn swt_first_pass(input: &SwtInput<'_>, swt: &mut [f32], rays: &mut Vec<Ray>) {
-    let width = input.width as usize;
-    let height = input.height as usize;
+#[derive(Clone, Copy)]
+struct TransformInput<'a> {
+    edge: &'a image::GrayImage,
+    gradient_x: &'a GrayF32Image,
+    gradient_y: &'a GrayF32Image,
+    params: SwtParams,
+}
+
+fn swt_first_pass(
+    input: TransformInput<'_>,
+    swt: &mut [f32],
+    rays: &mut Vec<Ray>,
+) {
+    let width = input.edge.width() as usize;
+    let height = input.edge.height() as usize;
+    let edge = input.edge.as_raw();
+    let gradient_x = input.gradient_x.as_raw();
+    let gradient_y = input.gradient_y.as_raw();
 
     for row in 0..height {
         for col in 0..width {
             let start_idx = row * width + col;
-            if input.edge[start_idx] == 0 {
+            if edge[start_idx] == 0 {
                 continue;
             }
 
             let Some((mut dx, mut dy)) = normalized_gradient(
-                input.gradient_x[start_idx],
-                input.gradient_y[start_idx],
+                gradient_x[start_idx],
+                gradient_y[start_idx],
             ) else {
                 continue;
             };
@@ -79,8 +118,8 @@ fn swt_first_pass(input: &SwtInput<'_>, swt: &mut [f32], rays: &mut Vec<Ray>) {
                 cur_pix_y = next_y;
                 if cur_pix_x < 0
                     || cur_pix_y < 0
-                    || cur_pix_x >= input.width as i32
-                    || cur_pix_y >= input.height as i32
+                    || cur_pix_x >= input.edge.width() as i32
+                    || cur_pix_y >= input.edge.height() as i32
                 {
                     break;
                 }
@@ -92,14 +131,13 @@ fn swt_first_pass(input: &SwtInput<'_>, swt: &mut [f32], rays: &mut Vec<Ray>) {
                 points.push(pt);
 
                 let idx = point_index(width, pt);
-                if input.edge[idx] == 0 {
+                if edge[idx] == 0 {
                     continue;
                 }
 
-                let Some((mut stop_dx, mut stop_dy)) = normalized_gradient(
-                    input.gradient_x[idx],
-                    input.gradient_y[idx],
-                ) else {
+                let Some((mut stop_dx, mut stop_dy)) =
+                    normalized_gradient(gradient_x[idx], gradient_y[idx])
+                else {
                     break;
                 };
 

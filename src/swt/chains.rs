@@ -4,7 +4,7 @@ use super::components::{
     component_bounding_boxes, filter_swt_components, swt_connected_components,
 };
 use super::geometry::rect_from_opencv_points;
-use super::validation::{validate_len, validate_swt_image};
+use super::validation::{validate_image_dimensions, validate_swt_image};
 use super::{SwtComponent, SwtDetections, SwtImage};
 
 #[derive(Clone, Copy, Debug)]
@@ -32,28 +32,23 @@ struct ChainedComponent {
 
 pub fn detect_text_regions_from_swt(
     image: &SwtImage,
-    bgr: &[u8],
+    rgb: &image::RgbImage,
 ) -> Result<SwtDetections> {
     validate_swt_image(image)?;
-    let expected_bgr_len = image.data.len().checked_mul(3).ok_or(
-        MserError::ImageDimensionsTooLarge {
-            width: image.width,
-            height: image.height,
-        },
-    )?;
-    validate_len("bgr", bgr.len(), expected_bgr_len)?;
+    validate_rgb_matches_swt_image(image, rgb)?;
 
     let components = swt_connected_components(image)?;
     let valid_components = filter_swt_components(image, &components, false)?;
-    Ok(find_valid_chains(image, bgr, &valid_components))
+    Ok(find_valid_chains(image, rgb, &valid_components))
 }
 
 fn find_valid_chains(
     image: &SwtImage,
-    bgr: &[u8],
+    rgb: &image::RgbImage,
     components: &[SwtComponent],
 ) -> SwtDetections {
-    let width = image.width as usize;
+    let width = image.width() as usize;
+    let pixels = rgb.as_raw();
     let mut color_averages = Vec::with_capacity(components.len());
     for component in components {
         let mut avg = ChannelAverage {
@@ -63,9 +58,9 @@ fn find_valid_chains(
         };
         for point in &component.points {
             let idx = (point.y as usize * width + point.x as usize) * 3;
-            avg.c0 += bgr[idx] as f32;
-            avg.c1 += bgr[idx + 1] as f32;
-            avg.c2 += bgr[idx + 2] as f32;
+            avg.c0 += pixels[idx] as f32;
+            avg.c1 += pixels[idx + 1] as f32;
+            avg.c2 += pixels[idx + 2] as f32;
         }
         let len = component.points.len() as f32;
         avg.c0 /= len;
@@ -204,6 +199,20 @@ fn find_valid_chains(
         letter_bounding_boxes: component_bounding_boxes(&final_components),
         chain_bounding_boxes,
     }
+}
+
+fn validate_rgb_matches_swt_image(
+    swt: &SwtImage,
+    rgb: &image::RgbImage,
+) -> Result<()> {
+    validate_image_dimensions(rgb.width(), rgb.height())?;
+    if rgb.width() != swt.width() || rgb.height() != swt.height() {
+        return Err(MserError::InvalidSwtInput {
+            field: "rgb",
+            message: "image dimensions must match SWT image",
+        });
+    }
+    Ok(())
 }
 
 fn opencv_ratio_accepts(a: f32, b: f32) -> bool {

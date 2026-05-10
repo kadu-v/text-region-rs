@@ -1,4 +1,9 @@
+use image::{GrayImage, ImageBuffer, Luma, RgbImage};
+
 use super::Rect;
+
+pub type GrayF32Image = ImageBuffer<Luma<f32>, Vec<f32>>;
+pub type SwtImage = GrayF32Image;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SwtParams {
@@ -13,39 +18,12 @@ impl Default for SwtParams {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct SwtInput<'a> {
-    pub width: u32,
-    pub height: u32,
-    pub edge: &'a [u8],
-    pub gradient_x: &'a [f32],
-    pub gradient_y: &'a [f32],
-    pub params: SwtParams,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct SwtBgrInput<'a> {
-    pub width: u32,
-    pub height: u32,
-    pub bgr: &'a [u8],
-    pub params: SwtParams,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct SwtImage {
-    pub width: u32,
-    pub height: u32,
-    pub data: Vec<f32>,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct SwtPreprocessed {
-    pub width: u32,
-    pub height: u32,
-    pub gray: Vec<u8>,
-    pub edge: Vec<u8>,
-    pub gradient_x: Vec<f32>,
-    pub gradient_y: Vec<f32>,
+    pub gray: GrayImage,
+    pub edge: GrayImage,
+    pub gradient_x: GrayF32Image,
+    pub gradient_y: GrayF32Image,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -71,6 +49,6 @@ pub struct SwtDebugOutput {
     pub detections: SwtDetections,
     pub preprocessed: SwtPreprocessed,
     pub swt_image: SwtImage,
-    pub normalized_swt: Vec<u8>,
-    pub draw_bgr: Vec<u8>,
+    pub normalized_swt: GrayImage,
+    pub draw_rgb: RgbImage,
 }
