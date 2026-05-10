@@ -12,8 +12,16 @@ thiserror = "2"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[example]]
-name = "detect"
-path = "examples/detect.rs"
+name = "maser_detect"
+path = "examples/maser_detect.rs"
+
+[[example]]
+name = "swt_detect"
+path = "examples/swt_detect.rs"
+
+[[example]]
+name = "timing"
+path = "examples/timing.rs"
 
 [[bench]]
 name = "mser_bench"

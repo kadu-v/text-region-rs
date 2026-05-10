@@ -1,8 +1,15 @@
 use crate::error::Result;
 
-use super::{GrayF32Image, SwtPreprocessed};
+use super::{GrayF32Image, SwtParams, SwtPreprocessed};
 
 pub fn swt_preprocess_rgb(image: &image::RgbImage) -> Result<SwtPreprocessed> {
+    swt_preprocess_rgb_with_params(image, SwtParams::default())
+}
+
+pub fn swt_preprocess_rgb_with_params(
+    image: &image::RgbImage,
+    params: SwtParams,
+) -> Result<SwtPreprocessed> {
     let width = image.width();
     let height = image.height();
     super::validation::validate_image_dimensions(width, height)?;
@@ -12,8 +19,8 @@ pub fn swt_preprocess_rgb(image: &image::RgbImage) -> Result<SwtPreprocessed> {
         gray.as_raw(),
         width as usize,
         height as usize,
-        175.0,
-        320.0,
+        params.canny_low_threshold,
+        params.canny_high_threshold,
     );
     let edge = image::GrayImage::from_vec(width, height, edge_data)
         .expect("valid edge image");

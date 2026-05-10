@@ -3,7 +3,7 @@ use crate::error::Result;
 use super::geometry::{point_index_from_xy, rect_from_opencv_points};
 use super::{
     COMPONENT_ROTATION_STEPS, Point, Rect, SWT_COMPONENT_RATIO_THRESHOLD,
-    SwtComponent, SwtImage,
+    SwtComponent, SwtImage, SwtParams,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -136,6 +136,20 @@ pub fn filter_swt_components(
     components: &[Vec<Point>],
     skip_checks: bool,
 ) -> Result<Vec<SwtComponent>> {
+    filter_swt_components_with_params(
+        image,
+        components,
+        skip_checks,
+        SwtParams::default(),
+    )
+}
+
+pub fn filter_swt_components_with_params(
+    image: &SwtImage,
+    components: &[Vec<Point>],
+    skip_checks: bool,
+    params: SwtParams,
+) -> Result<Vec<SwtComponent>> {
     super::validation::validate_swt_image(image)?;
 
     let mut filtered = Vec::with_capacity(components.len());
@@ -145,10 +159,12 @@ pub fn filter_swt_components(
         }
 
         let mut attr = component_attributes(image, component);
-        if !skip_checks && attr.variance > 0.5 * attr.mean {
+        if !skip_checks
+            && attr.variance > params.component_variance_ratio * attr.mean
+        {
             continue;
         }
-        if !skip_checks && attr.width > 300.0 {
+        if !skip_checks && attr.width > params.max_component_width {
             continue;
         }
 
@@ -182,7 +198,11 @@ pub fn filter_swt_components(
         }
 
         let aspect = attr.length / attr.width;
-        if !skip_checks && !(0.1..=10.0).contains(&aspect) {
+        if !skip_checks
+            && !(params.min_component_aspect_ratio
+                ..=params.max_component_aspect_ratio)
+                .contains(&aspect)
+        {
             continue;
         }
 

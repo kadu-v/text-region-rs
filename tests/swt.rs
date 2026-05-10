@@ -227,6 +227,28 @@ fn swt_component_filter_matches_opencv_variance_check() {
 }
 
 #[test]
+fn swt_default_params_keep_large_label_components() {
+    let width = 260;
+    let height = 380;
+    let mut data = vec![INVALID_STROKE_WIDTH; width * height];
+    for y in 20..340 {
+        for x in 40..110 {
+            data[y * width + x] = 12.0;
+        }
+        for x in 150..220 {
+            data[y * width + x] = 14.0;
+        }
+    }
+    let image = swt_image(width as u32, height as u32, data);
+
+    let components = swt_connected_components(&image).unwrap();
+    let filtered = filter_swt_components(&image, &components, false).unwrap();
+
+    assert_eq!(filtered.len(), 2);
+    assert!(filtered.iter().all(|component| component.width >= 320));
+}
+
+#[test]
 fn swt_detect_text_regions_matches_opencv_chain_heuristics() {
     let width = 10;
     let height = 6;

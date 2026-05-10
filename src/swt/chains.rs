@@ -1,11 +1,12 @@
 use crate::error::{MserError, Result};
 
 use super::components::{
-    component_bounding_boxes, filter_swt_components, swt_connected_components,
+    component_bounding_boxes, filter_swt_components_with_params,
+    swt_connected_components,
 };
 use super::geometry::rect_from_opencv_points;
 use super::validation::{validate_image_dimensions, validate_swt_image};
-use super::{SwtComponent, SwtDetections, SwtImage};
+use super::{SwtComponent, SwtDetections, SwtImage, SwtParams};
 
 #[derive(Clone, Copy, Debug)]
 struct ChannelAverage {
@@ -34,18 +35,28 @@ pub fn detect_text_regions_from_swt(
     image: &SwtImage,
     rgb: &image::RgbImage,
 ) -> Result<SwtDetections> {
+    detect_text_regions_from_swt_with_params(image, rgb, SwtParams::default())
+}
+
+pub fn detect_text_regions_from_swt_with_params(
+    image: &SwtImage,
+    rgb: &image::RgbImage,
+    params: SwtParams,
+) -> Result<SwtDetections> {
     validate_swt_image(image)?;
     validate_rgb_matches_swt_image(image, rgb)?;
 
     let components = swt_connected_components(image)?;
-    let valid_components = filter_swt_components(image, &components, false)?;
-    Ok(find_valid_chains(image, rgb, &valid_components))
+    let valid_components =
+        filter_swt_components_with_params(image, &components, false, params)?;
+    Ok(find_valid_chains(image, rgb, &valid_components, params))
 }
 
 fn find_valid_chains(
     image: &SwtImage,
     rgb: &image::RgbImage,
     components: &[SwtComponent],
+    params: SwtParams,
 ) -> SwtDetections {
     let width = image.width() as usize;
     let pixels = rgb.as_raw();
@@ -93,7 +104,9 @@ fn find_valid_chains(
                 .min(comp_i.width)
                 .max(comp_j.length.min(comp_j.width))
                 as f32;
-            if dist < 9.0 * scale * scale && color_dist < 1600.0 {
+            if dist < params.chain_pair_distance_scale * scale * scale
+                && color_dist < params.chain_color_distance_threshold
+            {
                 let mag = dx.hypot(dy);
                 if mag <= f32::EPSILON {
                     continue;
@@ -115,7 +128,7 @@ fn find_valid_chains(
 
     chains.sort_by(|a, b| a.chain_dist.total_cmp(&b.chain_dist));
 
-    let alignment_threshold_cos = (std::f32::consts::PI / 6.0).cos();
+    let alignment_threshold_cos = params.chain_alignment_angle_rad.cos();
     let mut merges = 1;
     while merges > 0 {
         for chain in &mut chains {
@@ -159,7 +172,7 @@ fn find_valid_chains(
     let mut chain_bounding_boxes = Vec::new();
 
     for chain in &chains {
-        if chain.component_indices.len() < 3 {
+        if chain.component_indices.len() < params.min_chain_components {
             continue;
         }
 
@@ -192,9 +205,13 @@ fn find_valid_chains(
         }
     }
 
-    let final_components =
-        filter_swt_components(image, &component_groups, true)
-            .unwrap_or_default();
+    let final_components = filter_swt_components_with_params(
+        image,
+        &component_groups,
+        true,
+        params,
+    )
+    .unwrap_or_default();
     SwtDetections {
         letter_bounding_boxes: component_bounding_boxes(&final_components),
         chain_bounding_boxes,

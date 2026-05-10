@@ -10,11 +10,14 @@ mod validation;
 use crate::error::Result;
 
 pub use crate::mser::types::{Point, Rect};
-pub use chains::detect_text_regions_from_swt;
-pub use components::{
-    filter_swt_components, normalize_and_scale, swt_connected_components,
+pub use chains::{
+    detect_text_regions_from_swt, detect_text_regions_from_swt_with_params,
 };
-pub use preprocess::swt_preprocess_rgb;
+pub use components::{
+    filter_swt_components, filter_swt_components_with_params,
+    normalize_and_scale, swt_connected_components,
+};
+pub use preprocess::{swt_preprocess_rgb, swt_preprocess_rgb_with_params};
 pub use transform::stroke_width_transform;
 pub use types::{
     GrayF32Image, SwtComponent, SwtDebugOutput, SwtDetections, SwtImage,
@@ -38,14 +41,15 @@ pub fn detect_text_swt_with_debug(
 ) -> Result<SwtDebugOutput> {
     validation::validate_image_dimensions(image.width(), image.height())?;
 
-    let preprocessed = swt_preprocess_rgb(image)?;
+    let preprocessed = swt_preprocess_rgb_with_params(image, params)?;
     let swt_image = stroke_width_transform(
         &preprocessed.edge,
         &preprocessed.gradient_x,
         &preprocessed.gradient_y,
         params,
     )?;
-    let detections = detect_text_regions_from_swt(&swt_image, image)?;
+    let detections =
+        detect_text_regions_from_swt_with_params(&swt_image, image, params)?;
     let normalized_swt = normalize_and_scale(&swt_image);
     let draw_rgb = render::render_debug_rgb(
         image.width() as usize,
