@@ -18,3 +18,7 @@ path = "examples/detect.rs"
 [[bench]]
 name = "mser_bench"
 harness = false
+
+[[bench]]
+name = "swt_bench"
+harness = false
